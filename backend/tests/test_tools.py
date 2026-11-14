@@ -34,6 +34,26 @@ def runtime(*definitions, allowlist=None):
     return executor, events
 
 
+def test_quota_is_applied_only_to_new_operations():
+    async def check():
+        executor, _ = runtime(CALCULATOR_TOOL)
+        executor.rate_limit_check = AsyncMock()
+        for _ in range(2):
+            result = await executor.execute(
+                "calculate_expression", {"expression": "2+3"}, call_id="same-call"
+            )
+            assert result.status == "completed"
+        executor.rate_limit_check.assert_awaited_once()
+        executor.rate_limit_check.side_effect = ToolFailure("rate_limited", "Wait")
+        result = await executor.execute(
+            "calculate_expression", {"expression": "2+3"}, call_id="new-call"
+        )
+        assert result.status == "failed" and result.code == "rate_limited"
+        await executor.close()
+
+    asyncio.run(check())
+
+
 def test_registry_allowlist_and_removal():
     registry = ToolRegistry()
     registry.register(TIME_TOOL)

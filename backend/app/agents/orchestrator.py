@@ -38,6 +38,8 @@ class Orchestrator:
         self.activities: dict[str, dict] = {}
         self.revision = 0
         self.event_sink = lambda event: None
+        self.event_listeners = []
+        self.close_infrastructure = None
         self.executor = ToolExecutor(
             self.registry, self.state, self.allowlist, self.emit
         )
@@ -57,6 +59,8 @@ class Orchestrator:
             while len(self.activities) > 64 and terminal:
                 self.activities.pop(terminal.pop(0))
         self.event_sink(event)
+        for listener in self.event_listeners:
+            listener(event)
 
     def make_tool(self, definition: ToolDefinition):
         parameters = definition.input_schema.model_json_schema()

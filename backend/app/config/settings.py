@@ -9,6 +9,7 @@ from urllib.parse import urlsplit
 from dotenv import load_dotenv
 
 from app.agents.instructions import DEFAULT_INSTRUCTIONS
+from app.config.infrastructure import InfrastructureSettings
 from app.providers.registry import Category, ProviderError, registry
 
 ENV_FILE = Path(__file__).resolve().parents[2] / ".env"
@@ -71,6 +72,9 @@ class Settings:
     allow_batch_stt: bool = False
     require_interim: bool = False
     turn_detection: str = "vad"
+    infrastructure: InfrastructureSettings = field(
+        default_factory=InfrastructureSettings
+    )
     mcp_enabled: bool = False
     mcp_config_file: str = "mcp.servers.json"
     tool_allowlist: tuple[str, ...] = (
@@ -166,7 +170,12 @@ class Settings:
             raise ConfigurationError(
                 "Selected STT does not support provider turn detection; use vad"
             )
+        try:
+            infrastructure = InfrastructureSettings.from_env(values)
+        except ValueError as error:
+            raise ConfigurationError(str(error)) from None
         return cls(
+            infrastructure=infrastructure,
             livekit_url=optional("LIVEKIT_URL"),
             livekit_api_key=optional("LIVEKIT_API_KEY"),
             livekit_api_secret=optional("LIVEKIT_API_SECRET"),

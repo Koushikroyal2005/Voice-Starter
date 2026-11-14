@@ -191,6 +191,8 @@ async def install_workbench(
             await orchestrator.executor.close()
             if orchestrator.external_tools:
                 await orchestrator.external_tools.aclose()
+            if orchestrator.close_infrastructure:
+                await orchestrator.close_infrastructure()
         for task in list(tasks):
             task.cancel()
         if tasks:

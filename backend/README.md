@@ -215,3 +215,8 @@ parallel provider SDK or replacing LiveKit's event and transport abstractions.
 - [Murf](https://docs.livekit.io/agents/models/tts/murf/)
 - [NIM Chat Completions](https://docs.nvidia.com/nim/large-language-models/1.12.0/api-reference.html)
 - [vLLM serving](https://docs.vllm.ai/en/stable/serving/online_serving/)
+
+## Optional persistence and infrastructure
+
+See [PostgreSQL, migrations, Redis and Windows setup](../docs/persistence.md).
+Persistence and transcripts default off; Redis is independently optional.

@@ -35,6 +35,7 @@ class ToolExecutor:
         self.ledger = StateManager()
         self.confirmations = ConfirmationManager(emit)
         self.running_writes: set[str] = set()
+        self.rate_limit_check = None
 
     def event(
         self,
@@ -185,6 +186,8 @@ class ToolExecutor:
 
     async def _run(self, tool, args, call_id, key, digest, idempotency_key, ancestors):
         try:
+            if self.rate_limit_check:
+                await self.rate_limit_check()
             if tool.sensitive:
                 approved = await self.confirmations.request(
                     self.state.actor_id,

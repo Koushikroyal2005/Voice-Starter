@@ -193,3 +193,9 @@ safe demo tools/workflow, permission/confirmation policies and use-case extensio
 
 See [Optional MCP tools](docs/mcp.md) for verified local stdio/HTTP demos, approved-tool
 policies, private configuration and adding external hackathon integrations.
+
+## Optional persistence
+
+See [persistence setup and security boundaries](docs/persistence.md) for PostgreSQL,
+Alembic, opt-in transcripts and optional Redis. No infrastructure service is required
+for the default voice-only setup.

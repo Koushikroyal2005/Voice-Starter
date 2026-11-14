@@ -10,6 +10,7 @@ from app.bootstrap import build_orchestrator
 from app.config.settings import ConfigurationError, load_settings
 from app.providers.pipeline import create_session
 from app.providers.registry import ProviderError
+from app.services.infrastructure import install_infrastructure
 from app.services.workbench import install_workbench
 
 logger = logging.getLogger("voice-starter")
@@ -17,13 +18,13 @@ logger = logging.getLogger("voice-starter")
 
 async def voice_session(ctx: JobContext) -> None:
     config = load_settings()
-    logger.info("Voice job received", extra={"room": ctx.room.name})
+    logger.info("Voice job received")
     session = create_session(config)
     orchestrator = build_orchestrator(config)
 
     @session.on("close")
     def on_session_close(_event):
-        logger.info("Voice session closed", extra={"room": ctx.room.name})
+        logger.info("Voice session closed")
         ctx.shutdown(reason="voice_session_closed")
 
     agent = MainAgent(config, orchestrator)
@@ -33,7 +34,13 @@ async def voice_session(ctx: JobContext) -> None:
         room_options=room_io.RoomOptions(close_on_disconnect=True),
     )
     await ctx.connect()
-    await install_workbench(ctx, session, config.stt.language, orchestrator)
+    await install_infrastructure(ctx, session, orchestrator, config)
+    try:
+        await install_workbench(ctx, session, config.stt.language, orchestrator)
+    except BaseException:
+        if orchestrator.close_infrastructure:
+            await orchestrator.close_infrastructure()
+        raise
     if orchestrator.external_tools:
         orchestrator.external_tools.start(agent)
     await session.generate_reply(
