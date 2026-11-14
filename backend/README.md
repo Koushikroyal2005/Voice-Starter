@@ -2,7 +2,10 @@
 
 Python 3.13 / LiveKit Agents 1.8.12. One agent, one configured STT → LLM → TTS
 pipeline. All provider credentials stay in `backend/.env` or process environment.
-The existing Next.js frontend is unchanged.
+The existing Next.js frontend uses the worker's real tool events and confirmation RPC.
+
+See [tool orchestration](../docs/tool-orchestration.md) for tool definitions, permissions,
+confirmation, idempotency, cancellation, workflows and the use-case extension guide.
 
 ## Windows setup
 

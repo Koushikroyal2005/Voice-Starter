@@ -16,6 +16,18 @@ def valid_env():
     }
 
 
+def test_tool_allowlist_defaults_and_explicit_empty_override():
+    assert Settings.from_env(valid_env()).tool_allowlist == (
+        "get_current_time",
+        "calculate_expression",
+        "time_and_calculate",
+    )
+    assert Settings.from_env(valid_env() | {"TOOL_ALLOWLIST": ""}).tool_allowlist == ()
+    assert Settings.from_env(
+        valid_env() | {"TOOL_ALLOWLIST": " get_current_time , "}
+    ).tool_allowlist == ("get_current_time",)
+
+
 def test_defaults_and_secrets_hidden():
     settings = Settings.from_env(valid_env())
     assert settings.agent_name == ""

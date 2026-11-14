@@ -1,12 +1,15 @@
 import asyncio
 import json
+from dataclasses import replace
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
 
 import pytest
 from livekit import rtc
 
+from app.agents.orchestrator import Orchestrator
 from app.services.workbench import install_workbench
+from app.tools.common.time import TIME_TOOL
 
 
 def bridge():
@@ -30,7 +33,7 @@ def bridge():
         set_attributes=AsyncMock(),
     )
     ctx = SimpleNamespace(
-        room=SimpleNamespace(local_participant=local),
+        room=SimpleNamespace(local_participant=local, on=register({})),
         add_shutdown_callback=Mock(),
     )
     session = SimpleNamespace(
@@ -118,6 +121,54 @@ def test_only_actual_interrupted_items_emit_interruption():
         assert json.loads(
             ctx.room.local_participant.publish_data.call_args.args[0]
         ) == {"type": "interrupted"}
+        await ctx.add_shutdown_callback.call_args.args[0]()
+
+    asyncio.run(run())
+
+
+def test_confirmation_rpc_is_linked_human_only_and_rejects_replay():
+    async def run():
+        ctx, session, handlers, _ = bridge()
+        orchestrator = Orchestrator(SimpleNamespace(tool_allowlist=(TIME_TOOL.name,)))
+        orchestrator.registry.remove(TIME_TOOL.name)
+        orchestrator.registry.register(
+            replace(
+                TIME_TOOL,
+                sensitive=True,
+                confirmation_summary=lambda _: "Read the current time",
+            )
+        )
+        await install_workbench(ctx, session, "en", orchestrator)
+        pending = asyncio.create_task(
+            orchestrator.executor.execute(TIME_TOOL.name, {}, call_id="rpc")
+        )
+        for _ in range(20):
+            await asyncio.sleep(0)
+            if orchestrator.executor.confirmations.pending:
+                break
+        token = next(iter(orchestrator.executor.confirmations.pending))
+        snapshot = await handlers["voice.tools_state"](
+            SimpleNamespace(caller_identity="user")
+        )
+        assert json.loads(snapshot)[-1]["name"] == "Check current time"
+        payload = json.dumps({"confirmation_id": token, "approved": False})
+        for caller, body in [
+            ("attacker", payload),
+            ("user", '{"approved":"true"}'),
+            ("user", "x" * 513),
+        ]:
+            with pytest.raises(rtc.RpcError):
+                await handlers["voice.confirm_tool"](
+                    SimpleNamespace(caller_identity=caller, payload=body)
+                )
+        await handlers["voice.confirm_tool"](
+            SimpleNamespace(caller_identity="user", payload=payload)
+        )
+        assert (await pending).code == "confirmation_denied"
+        with pytest.raises(rtc.RpcError):
+            await handlers["voice.confirm_tool"](
+                SimpleNamespace(caller_identity="user", payload=payload)
+            )
         await ctx.add_shutdown_callback.call_args.args[0]()
 
     asyncio.run(run())

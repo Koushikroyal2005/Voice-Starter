@@ -7,15 +7,22 @@ import logging
 from livekit import rtc
 from livekit.agents import AgentSession, JobContext
 
+from app.agents.orchestrator import Orchestrator
+from app.tools.base import ToolFailure
+
 logger = logging.getLogger("voice-starter.workbench")
 TOPIC = "voice.workbench.v1"
 
 
 async def install_workbench(
-    ctx: JobContext, session: AgentSession, language: str
+    ctx: JobContext,
+    session: AgentSession,
+    language: str,
+    orchestrator: Orchestrator | None = None,
 ) -> None:
     tasks: set[asyncio.Task] = set()
     names: dict[str, str] = {}
+    queue: asyncio.Queue[dict] = asyncio.Queue(maxsize=128)
 
     async def publish(event: dict) -> None:
         participant = session.room_io.linked_participant
@@ -32,15 +39,102 @@ async def install_workbench(
             logger.warning("Could not deliver workbench event")
 
     def emit(event: dict) -> None:
-        task = asyncio.create_task(publish(event))
-        tasks.add(task)
-        task.add_done_callback(tasks.discard)
+        try:
+            queue.put_nowait(event)
+        except asyncio.QueueFull:
+            logger.warning("Workbench event queue full; event not delivered")
+
+    async def sender():
+        while True:
+            await publish(await queue.get())
+
+    task = asyncio.create_task(sender())
+    tasks.add(task)
+    task.add_done_callback(tasks.discard)
+
+    def linked_caller(data):
+        participant = session.room_io.linked_participant
+        if participant is None or data.caller_identity != participant.identity:
+            raise rtc.RpcError(2001, "Caller is not the linked session participant")
+        return participant.identity
+
+    if orchestrator:
+        orchestrator.event_sink = emit
+
+        @ctx.room.local_participant.register_rpc_method("voice.confirm_tool")
+        async def confirm_tool(data: rtc.RpcInvocationData) -> str:
+            actor = linked_caller(data)
+            try:
+                if len(data.payload) > 512:
+                    raise ValueError
+                payload = json.loads(data.payload)
+                if (
+                    not isinstance(payload, dict)
+                    or set(payload) != {"confirmation_id", "approved"}
+                    or type(payload["approved"]) is not bool
+                    or not isinstance(payload["confirmation_id"], str)
+                ):
+                    raise ValueError
+                orchestrator.executor.confirmations.resolve(
+                    payload["confirmation_id"], actor, payload["approved"]
+                )
+                return '{"accepted":true}'
+            except (ValueError, KeyError, TypeError, ToolFailure):
+                raise rtc.RpcError(
+                    2002, "Confirmation is invalid, expired or already answered"
+                ) from None
+
+        @ctx.room.local_participant.register_rpc_method("voice.tools_state")
+        async def tools_state(data: rtc.RpcInvocationData) -> str:
+            linked_caller(data)
+            activities = list(orchestrator.activities.values())
+            active = [
+                a
+                for a in activities
+                if a["status"] in ("selected", "running", "confirmation_required")
+            ]
+            recent = [a for a in activities if a not in active][-8:]
+            snapshot = []
+            for activity in (active + recent)[-16:]:
+                candidate = snapshot + [activity]
+                if len(json.dumps(candidate, ensure_ascii=False).encode()) <= 14000:
+                    snapshot = candidate
+            return json.dumps(snapshot, ensure_ascii=False)
+
+        @session.on("user_state_changed")
+        def on_user_state(event):
+            if event.new_state == "speaking":
+                task = asyncio.create_task(orchestrator.executor.cancel_safe())
+                tasks.add(task)
+                task.add_done_callback(tasks.discard)
+
+        def bind_actor():
+            participant = session.room_io.linked_participant
+            if participant:
+                if orchestrator.state.actor_id is None:
+                    orchestrator.state.actor_id = participant.identity
+                elif orchestrator.state.actor_id != participant.identity:
+                    # Never transfer pending actions/permissions to a replacement user.
+                    orchestrator.state.closed = True
+                    orchestrator.executor.confirmations.cancel_all()
+
+        bind_actor()
+
+        # RoomIO may select its linked participant after connection.
+        @ctx.room.on("participant_connected")
+        def on_participant(_participant):
+            bind_actor()
 
     @ctx.room.local_participant.register_rpc_method("voice.interrupt")
     async def interrupt(data: rtc.RpcInvocationData) -> str:
-        participant = session.room_io.linked_participant
-        if participant is None or data.caller_identity != participant.identity:
-            raise rtc.RpcError(1403, "Caller is not the linked session participant")
+        linked_caller(data)
+        if orchestrator:
+            await orchestrator.executor.cancel_safe()
+            if orchestrator.executor.running_writes:
+                raise rtc.RpcError(
+                    2003,
+                    "A non-cancellable action is in progress; check its outcome",
+                )
         # SDK cancellation clears queued speech and truncates interrupted history.
         await session.interrupt(force=True)
         return '{"interrupted":true}'
@@ -55,21 +149,35 @@ async def install_workbench(
         update = event.update
         if update.type == "tool_call_started":
             call = update.function_call
-            names[call.call_id] = call.name
+            if orchestrator:
+                bind_actor()
+            try:
+                definition = (
+                    orchestrator.registry.get(call.name) if orchestrator else None
+                )
+            except ValueError:
+                definition = None
+            names[call.call_id] = definition.title if definition else "Agent action"
             emit(
                 {
                     "type": "tool",
                     "id": call.call_id,
-                    "name": call.name[:200],
-                    "status": "running",
+                    "name": names[call.call_id][:200],
+                    "description": definition.description
+                    if definition
+                    else "An agent action was selected.",
+                    "status": "selected" if orchestrator else "running",
                 }
             )
         elif update.type == "tool_call_ended":
+            if orchestrator and update.call_id in orchestrator.activities:
+                names.pop(update.call_id, None)
+                return  # Executor outcome overrides SDK transport success.
             emit(
                 {
                     "type": "tool",
                     "id": update.call_id,
-                    "name": names.pop(update.call_id, "Tool")[:200],
+                    "name": names.pop(update.call_id, "Agent action")[:200],
                     "status": update.status,
                 }
             )
@@ -77,6 +185,10 @@ async def install_workbench(
 
     async def cleanup() -> None:
         ctx.room.local_participant.unregister_rpc_method("voice.interrupt")
+        if orchestrator:
+            ctx.room.local_participant.unregister_rpc_method("voice.confirm_tool")
+            ctx.room.local_participant.unregister_rpc_method("voice.tools_state")
+            await orchestrator.executor.close()
         for task in list(tasks):
             task.cancel()
         if tasks:

@@ -13,7 +13,8 @@ vm.runInNewContext(
   { exports: exportsObject, Error },
   { filename }
 );
-const { deriveVoiceState, parseWorkerEvent, mediaErrorMessage } = exportsObject;
+const { deriveVoiceState, parseWorkerEvent, mediaErrorMessage, mergeToolActivities } =
+  exportsObject;
 test('connected but idle agent is not mislabelled as still connecting', () =>
   assert.equal(deriveVoiceState(snapshot({ agent: 'idle' })), 'idle'));
 const snapshot = (overrides = {}) => ({
@@ -87,4 +88,35 @@ test('actionable permission and missing-device errors', () => {
   }
   assert.match(mediaErrorMessage(new Error('secret-provider-error')), /configuration/);
   assert.doesNotMatch(mediaErrorMessage(new Error('secret-provider-error')), /secret-provider/);
+});
+
+test('human confirmation has its own session state', () => {
+  assert.equal(
+    deriveVoiceState(snapshot({ awaitingConfirmation: true, executing: true })),
+    'confirmation_required'
+  );
+});
+test('only well-formed worker confirmation events expose approval controls', () => {
+  const event = {
+    type: 'tool',
+    id: '1',
+    name: 'Reviewed action',
+    description: 'Approve the specific action',
+    status: 'confirmation_required',
+    confirmation_id: 'trusted-request-token-123',
+    revision: 2,
+  };
+  assert.equal(parseWorkerEvent(JSON.stringify(event)).tool.confirmationId, event.confirmation_id);
+  assert.equal(parseWorkerEvent(JSON.stringify({ ...event, confirmation_id: null })), null);
+  assert.equal(parseWorkerEvent(JSON.stringify({ ...event, revision: -1 })), null);
+  assert.equal(parseWorkerEvent(JSON.stringify({ ...event, description: 'x'.repeat(1001) })), null);
+});
+test('stale snapshots cannot undo completion and actual phases are retained', () => {
+  const first = { id: '1', name: 'Calculate expression', status: 'selected', revision: 1 };
+  let tools = mergeToolActivities([], first);
+  tools = mergeToolActivities(tools, { ...first, status: 'running', revision: 2 });
+  tools = mergeToolActivities(tools, { ...first, status: 'completed', revision: 3 });
+  tools = mergeToolActivities(tools, { ...first, status: 'running', revision: 2 });
+  assert.equal(tools[0].status, 'completed');
+  assert.equal(tools[0].phases.join(','), 'selected,running,completed');
 });

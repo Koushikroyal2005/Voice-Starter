@@ -1,10 +1,5 @@
-"""Minimal single-agent demo behavior."""
+"""Compatibility import: there is only one main agent implementation."""
 
-from livekit.agents import Agent
+from app.agents.orchestrator import MainAgent as DemoAgent
 
-from app.config.settings import Settings
-
-
-class DemoAgent(Agent):
-    def __init__(self, settings: Settings) -> None:
-        super().__init__(instructions=settings.instructions)
+__all__ = ["DemoAgent"]

@@ -187,3 +187,6 @@ limitations, compatible NIM/vLLM endpoints, and adding new providers.
 
 See [Voice Workbench](docs/voice-workbench.md) for the reusable UI components,
 state/event model, real audio sources, interruption bridge and verification checklist.
+
+See [Tool orchestration](docs/tool-orchestration.md) for the single-agent tool engine,
+safe demo tools/workflow, permission/confirmation policies and use-case extension guide.

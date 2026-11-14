@@ -10,6 +10,7 @@ import {
   type VoiceResult,
   deriveVoiceState,
   mediaErrorMessage,
+  mergeToolActivities,
   parseWorkerEvent,
 } from './state';
 
@@ -57,6 +58,7 @@ export function useVoiceWorkbench() {
     agent: agent.state,
     ...control,
     executing: tools.some((t) => t.status === 'running'),
+    awaitingConfirmation: tools.some((t) => t.status === 'confirmation_required'),
   });
   const identity = agent.isConnected ? agent.identity : undefined;
   const reportError = useCallback(
@@ -87,8 +89,7 @@ export function useVoiceWorkbench() {
         return;
       const event = parseWorkerEvent(new TextDecoder().decode(data));
       if (event?.type === 'interrupted') dispatch({ type: 'interrupted' });
-      if (event?.type === 'tool')
-        setTools((old) => [...old.filter((t) => t.id !== event.tool.id), event.tool].slice(-30));
+      if (event?.type === 'tool') setTools((old) => mergeToolActivities(old, event.tool));
       if (event?.type === 'result')
         setResults((old) =>
           [...old.filter((r) => r.id !== event.result.id), event.result].slice(-20)
@@ -96,7 +97,11 @@ export function useVoiceWorkbench() {
     };
     const onDisconnected = (reason?: DisconnectReason) => {
       setTools((old) =>
-        old.map((t) => (t.status === 'running' ? { ...t, status: 'cancelled' } : t))
+        old.map((t) =>
+          ['running', 'confirmation_required', 'selected'].includes(t.status)
+            ? { ...t, status: 'unknown', confirmationId: undefined }
+            : t
+        )
       );
       if (reason !== DisconnectReason.CLIENT_INITIATED)
         dispatch({
@@ -116,6 +121,42 @@ export function useVoiceWorkbench() {
         .off(RoomEvent.Disconnected, onDisconnected);
     };
   }, [identity, session.room, reportError]);
+  const refreshTools = useCallback(async () => {
+    if (!identity || session.connectionState !== 'connected') return;
+    try {
+      const raw = await session.room.localParticipant.performRpc({
+        destinationIdentity: identity,
+        method: 'voice.tools_state',
+        payload: '{}',
+        responseTimeout: 5000,
+      });
+      if (raw.length > 16384) return;
+      const list = JSON.parse(raw);
+      if (!Array.isArray(list) || list.length > 32) return;
+      const current: ToolActivity[] = [];
+      for (const item of list) {
+        const event = parseWorkerEvent(JSON.stringify(item));
+        if (event?.type === 'tool') current.push(event.tool);
+      }
+      setTools((old) => current.reduce(mergeToolActivities, old));
+    } catch {
+      /* Older workers may not implement snapshots; live events still work. */
+    }
+  }, [identity, session.room, session.connectionState]);
+  useEffect(() => {
+    void refreshTools();
+  }, [refreshTools]);
+  async function confirmTool(confirmationId: string, approved: boolean) {
+    if (!identity || session.connectionState !== 'connected')
+      throw new Error('Reconnect before answering this confirmation.');
+    await session.room.localParticipant.performRpc({
+      destinationIdentity: identity,
+      method: 'voice.confirm_tool',
+      payload: JSON.stringify({ confirmation_id: confirmationId, approved }),
+      responseTimeout: 5000,
+    });
+    await refreshTools();
+  }
   async function start(textOnly = false) {
     if (commandLock.current) return;
     commandLock.current = true;
@@ -199,5 +240,6 @@ export function useVoiceWorkbench() {
     end,
     interrupt,
     reportError,
+    confirmTool,
   };
 }

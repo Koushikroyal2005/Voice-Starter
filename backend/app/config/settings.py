@@ -71,6 +71,11 @@ class Settings:
     allow_batch_stt: bool = False
     require_interim: bool = False
     turn_detection: str = "vad"
+    tool_allowlist: tuple[str, ...] = (
+        "get_current_time",
+        "calculate_expression",
+        "time_and_calculate",
+    )
 
     @classmethod
     def from_env(cls, env: Mapping[str, str] | None = None) -> "Settings":
@@ -171,6 +176,14 @@ class Settings:
             allow_batch_stt=allow_batch,
             require_interim=require_interim,
             turn_detection=turn_detection,
+            tool_allowlist=tuple(
+                name.strip()
+                for name in values.get(
+                    "TOOL_ALLOWLIST",
+                    "get_current_time,calculate_expression,time_and_calculate",
+                ).split(",")
+                if name.strip()
+            ),
         )
 
 

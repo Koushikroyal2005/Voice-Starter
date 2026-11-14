@@ -103,7 +103,12 @@ export function VoiceWorkbench() {
         <LiveTranscript messages={voice.messages} agentState={voice.agent.state} />
       </div>
       <div className="mt-5">
-        <ConversationTimeline entries={voice.entries} tools={voice.tools} results={voice.results} />
+        <ConversationTimeline
+          entries={voice.entries}
+          tools={voice.tools}
+          results={voice.results}
+          onConfirm={voice.confirmTool}
+        />
       </div>
       <footer className="text-muted-foreground mt-6 flex flex-wrap justify-between gap-2 text-xs">
         <span>LiveKit audio · No simulated activity</span>

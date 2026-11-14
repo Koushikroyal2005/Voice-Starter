@@ -29,7 +29,7 @@ def test_real_pipeline_constructs_locally():
         session = create_session(settings)
         try:
             assert isinstance(session, AgentSession)
-            assert DemoAgent(settings).instructions == settings.instructions
+            assert DemoAgent(settings).instructions.startswith(settings.instructions)
         finally:
             await session.aclose()
             await session.stt.aclose()

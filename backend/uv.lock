@@ -1537,6 +1537,7 @@ version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
     { name = "livekit-agents", extra = ["assemblyai", "cartesia", "deepgram", "elevenlabs", "google", "murf", "openai", "silero"] },
+    { name = "pydantic" },
     { name = "python-dotenv" },
 ]
 
@@ -1549,6 +1550,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "livekit-agents", extras = ["deepgram", "openai", "cartesia", "silero", "assemblyai", "google", "elevenlabs", "murf"], specifier = "==1.8.12" },
+    { name = "pydantic", specifier = ">=2.10,<3" },
     { name = "python-dotenv", specifier = ">=1.0,<2" },
 ]
 

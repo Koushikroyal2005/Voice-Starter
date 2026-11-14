@@ -19,8 +19,8 @@ Agents UI remains available; there is no separate audio, chat or WebRTC stack.
 - `use-voice-workbench.ts`: connects native hooks/events to the state model and
   serializes start/end/interrupt commands, with abortable session startup.
 - `backend/app/services/workbench.py`: authenticated interruption RPC, actual
-  SDK tool/interruption event forwarding and worker language metadata. No tools
-  or results are fabricated or automatically registered.
+  tool/interruption event forwarding, human confirmation RPC and language metadata.
+  No activity or results are fabricated. See [tool orchestration](tool-orchestration.md).
 
 ## State model
 
@@ -30,17 +30,18 @@ thinking and speaking. The reducer tracks explicit command phases, errors and
 confirmed interruptions, not unrelated loading booleans.
 
 Priority: ending → reconnecting → error → starting/connecting → disconnected/idle
-→ confirmed interrupted → actual running tool → agent state. Agent initializing
+→ confirmed interrupted → human confirmation → actual running tool → agent state. Agent initializing
 or waiting for dispatch displays connecting. A confirmed interruption persists
 until the next native agent-state transition. Muting does not claim interruption.
 
 The timeline records these derived transitions in memory (last 80), not analytics
 or persistent records. Tool and result lists are bounded; a new session clears
-them. Disconnect marks unfinished tool displays cancelled without claiming that
-remote business side effects were rolled back.
+them. Disconnect marks unfinished tool displays unknown; it does not claim that
+remote operations were cancelled or business side effects rolled back.
 
 `voice.interrupt` authenticates the caller against `session.room_io.linked_participant`.
-It awaits `session.interrupt(force=True)`, which cancels queued/current agent speech
+It cancels safe tool work and pending approvals, refuses to force-stop protected
+operations, then awaits `session.interrupt(force=True)`, which cancels agent speech
 and updates interrupted conversation history. It does not merely hide a waveform
 or mute browser output. LiveKit retains automatic spoken barge-in handling.
 Interruption cannot undo external tool side effects already committed.
@@ -70,9 +71,11 @@ chosen STT integration/configuration. No partials are invented for batch STT.
 
 Worker events use reliable data topic `voice.workbench.v1`. The frontend accepts
 only packets from the currently connected agent, bounds payloads and validates
-schemas. SDK `tool_execution_updated` start/end events supply real tool cards;
+schemas. The deterministic executor supplies real action states; SDK
+`tool_execution_updated` events cover native selection and SDK-level failures;
 raw arguments, result contents and provider exceptions are never auto-forwarded.
-No tool cards appear with the current tool-free demo agent.
+The current agent exposes safe clock/calculator tools and a sequential workflow.
+Approval cards appear only for real sensitive tool definitions, not fabricated writes.
 
 An application can explicitly publish a reviewed, non-sensitive result to the
 linked participant with `{type:"result", id, title, text}` on the same topic, or
@@ -137,15 +140,19 @@ Credentialed manual checks required:
    with Shift+Enter, and recover a failed send without losing the draft.
 5. Test denied/no/busy microphone, offline network, expired/invalid credentials,
    agent failure and reconnect; end and restart without stale tracks/messages.
-6. Verify actual tool start/end/error/cancel cards when real tools are added;
-   no demo tools or fake results are injected for this test.
+6. Ask for time, arithmetic and a time-stamped calculation; verify actual tool
+   selection/running/completed/error cards. Test sensitive approvals only with a
+   reviewed use-case tool; no fake write is registered for UI demonstration.
 7. Test mobile/desktop, light/dark/system theme, keyboard focus and screen reader
    labels. Changing visualizer without a track must not create audio activity.
 
 Do not claim the live pipeline or every interaction is verified without real
 credentials, an actual microphone/speaker and the credentialed checks above.
 
-### Checks performed in this workspace
+### Initial workbench checks performed in this workspace
+
+The subsequent tool-orchestration phase adds further tests described in
+[tool orchestration](tool-orchestration.md).
 
 - Backend: 59 tests passed, including linked-participant RPC authorization,
   SDK interruption invocation, tool event sanitization and shutdown cleanup.

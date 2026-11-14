@@ -4,6 +4,7 @@ export type VoiceState =
   | 'listening'
   | 'thinking'
   | 'executing'
+  | 'confirmation_required'
   | 'speaking'
   | 'interrupted'
   | 'reconnecting'
@@ -17,6 +18,7 @@ export interface Snapshot {
   error: string | null;
   interrupted: boolean;
   executing: boolean;
+  awaitingConfirmation?: boolean;
 }
 export function deriveVoiceState(s: Snapshot): VoiceState {
   if (s.command === 'ending') return 'disconnecting';
@@ -26,6 +28,7 @@ export function deriveVoiceState(s: Snapshot): VoiceState {
   if (s.command === 'starting' || s.connection === 'connecting') return 'connecting';
   if (s.connection !== 'connected') return 'idle';
   if (s.interrupted) return 'interrupted';
+  if (s.awaitingConfirmation) return 'confirmation_required';
   if (s.executing) return 'executing';
   if (s.agent === 'idle') return 'idle';
   if (s.agent === 'speaking' || s.agent === 'thinking' || s.agent === 'listening') return s.agent;
@@ -34,12 +37,42 @@ export function deriveVoiceState(s: Snapshot): VoiceState {
 export interface ToolActivity {
   id: string;
   name: string;
-  status: 'running' | 'done' | 'error' | 'cancelled';
+  status:
+    | 'selected'
+    | 'running'
+    | 'completed'
+    | 'failed'
+    | 'confirmation_required'
+    | 'unknown'
+    | 'done'
+    | 'error'
+    | 'cancelled';
+  description?: string;
+  confirmationId?: string;
+  phases?: string[];
+  revision?: number;
 }
 export interface VoiceResult {
   id: string;
   title: string;
   text: string;
+}
+export function mergeToolActivities(
+  previous: ToolActivity[],
+  incoming: ToolActivity
+): ToolActivity[] {
+  const old = previous.find((t) => t.id === incoming.id);
+  if (
+    old?.revision !== undefined &&
+    (incoming.revision === undefined || incoming.revision < old.revision)
+  )
+    return previous;
+  const phases = old?.phases ?? [];
+  const next = {
+    ...incoming,
+    phases: phases.at(-1) === incoming.status ? phases : [...phases, incoming.status].slice(-8),
+  };
+  return [...previous.filter((t) => t.id !== next.id), next].slice(-30);
 }
 export type WorkerEvent =
   | { type: 'interrupted' }
@@ -58,9 +91,36 @@ export function parseWorkerEvent(raw: string): WorkerEvent | null {
       v.id.length <= 200 &&
       typeof v.name === 'string' &&
       v.name.length <= 200 &&
-      ['running', 'done', 'error', 'cancelled'].includes(v.status)
+      (v.revision === undefined || (Number.isSafeInteger(v.revision) && v.revision >= 0)) &&
+      [
+        'selected',
+        'running',
+        'completed',
+        'failed',
+        'confirmation_required',
+        'unknown',
+        'done',
+        'error',
+        'cancelled',
+      ].includes(v.status) &&
+      (v.description === undefined ||
+        (typeof v.description === 'string' && v.description.length <= 1000)) &&
+      (v.status !== 'confirmation_required' ||
+        (typeof v.confirmation_id === 'string' &&
+          v.confirmation_id.length >= 20 &&
+          v.confirmation_id.length <= 100))
     )
-      return { type: 'tool', tool: { id: v.id, name: v.name, status: v.status } };
+      return {
+        type: 'tool',
+        tool: {
+          id: v.id,
+          name: v.name,
+          status: v.status,
+          description: v.description,
+          revision: v.revision,
+          confirmationId: v.status === 'confirmation_required' ? v.confirmation_id : undefined,
+        },
+      };
     if (
       v.type === 'result' &&
       typeof v.id === 'string' &&
