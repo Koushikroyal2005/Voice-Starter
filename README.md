@@ -158,6 +158,7 @@ model assets. CI uses Node 24 and locked Python/frontend dependencies.
 - [MCP integration](docs/mcp-integration.md)
 - [Creating a new use case](docs/creating-a-new-usecase.md)
 - [Tool orchestration](docs/tool-orchestration.md)
+- [Shared v1 workbench contracts and generation](contracts/voice-workbench/v1/README.md)
 - [Voice UI and audio sources](docs/voice-workbench.md)
 - [Persistence and Redis](docs/persistence.md)
 - [Observability/debugging latency](docs/observability.md)

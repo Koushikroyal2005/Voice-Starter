@@ -1,0 +1,107 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voice-starter.invalid/contracts/voice-workbench/v1/events.schema.json",
+  "title": "WorkbenchEvent",
+  "oneOf": [
+    { "$ref": "#/$defs/toolEvent" },
+    { "$ref": "#/$defs/resultEvent" },
+    { "$ref": "#/$defs/interruptedEvent" },
+    { "$ref": "#/$defs/errorEvent" }
+  ],
+  "$defs": {
+    "topic": { "const": "voice.workbench.v1" },
+    "revision": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+    "callId": { "type": "string", "maxLength": 200 },
+    "cardType": { "title": "CardType", "type": "string", "pattern": "^[a-z][a-z0-9_]{0,47}$" },
+    "resultData": { "title": "ResultData", "type": "object", "additionalProperties": true },
+    "confirmationToken": { "type": "string", "minLength": 20, "maxLength": 100 },
+    "toolEvent": {
+      "title": "ToolEvent",
+      "allOf": [
+        { "$ref": "#/$defs/toolFields" },
+        {
+          "oneOf": [
+            {
+              "type": "object",
+              "required": ["status"],
+              "properties": {
+                "status": {
+                  "enum": [
+                    "selected",
+                    "running",
+                    "completed",
+                    "failed",
+                    "unknown",
+                    "done",
+                    "error",
+                    "cancelled"
+                  ]
+                }
+              }
+            },
+            {
+              "type": "object",
+              "required": ["status", "confirmation_id"],
+              "properties": {
+                "status": { "const": "confirmation_required" },
+                "confirmation_id": { "$ref": "#/$defs/confirmationToken" }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "toolFields": {
+      "title": "ToolFields",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "id", "name", "status"],
+      "properties": {
+        "type": { "const": "tool" },
+        "id": { "$ref": "#/$defs/callId" },
+        "name": { "type": "string", "maxLength": 200 },
+        "status": { "type": "string" },
+        "description": { "type": "string", "maxLength": 1000 },
+        "confirmation_id": { "$ref": "#/$defs/confirmationToken" },
+        "revision": { "$ref": "#/$defs/revision" }
+      }
+    },
+    "resultEvent": {
+      "title": "ResultEvent",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "id", "title", "text"],
+      "properties": {
+        "type": { "const": "result" },
+        "id": { "$ref": "#/$defs/callId" },
+        "title": { "type": "string", "maxLength": 200 },
+        "text": { "type": "string" },
+        "card_type": { "$ref": "#/$defs/cardType" },
+        "data": { "$ref": "#/$defs/resultData" },
+        "revision": { "$ref": "#/$defs/revision" }
+      }
+    },
+    "interruptedEvent": {
+      "title": "InterruptedEvent",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type"],
+      "properties": {
+        "type": { "const": "interrupted" },
+        "revision": { "$ref": "#/$defs/revision" }
+      }
+    },
+    "errorEvent": {
+      "title": "ErrorEvent",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "code"],
+      "properties": {
+        "type": { "const": "error" },
+        "code": { "enum": ["provider_unavailable", "transcription_timeout"] },
+        "message": { "type": "string", "maxLength": 1000 },
+        "revision": { "$ref": "#/$defs/revision" }
+      }
+    }
+  }
+}

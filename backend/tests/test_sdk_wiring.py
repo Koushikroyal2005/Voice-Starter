@@ -7,6 +7,7 @@ from livekit.agents import AgentSession
 from livekit.agents.stt import StreamAdapter
 
 from app.agents.demo import DemoAgent
+from app.bootstrap import build_orchestrator
 from app.config.settings import Settings
 from app.main import voice_session
 from app.providers.pipeline import create_session
@@ -29,7 +30,9 @@ def test_real_pipeline_constructs_locally():
         session = create_session(settings)
         try:
             assert isinstance(session, AgentSession)
-            assert DemoAgent(settings).instructions.startswith(settings.instructions)
+            assert DemoAgent(
+                settings, build_orchestrator(settings)
+            ).instructions.startswith(settings.instructions)
         finally:
             await session.aclose()
             await session.stt.aclose()

@@ -1,0 +1,304 @@
+{
+  "topic": "voice.workbench.v1",
+  "events": [
+    {
+      "type": "tool",
+      "id": "calculator",
+      "name": "Calculate expression",
+      "description": "Safely evaluate bounded arithmetic, not code. Not a financial precision calculator.",
+      "status": "selected",
+      "revision": 1
+    },
+    {
+      "type": "tool",
+      "id": "calculator",
+      "name": "Calculate expression",
+      "description": "Safely evaluate bounded arithmetic, not code. Not a financial precision calculator.",
+      "status": "running",
+      "revision": 2
+    },
+    {
+      "type": "tool",
+      "id": "calculator",
+      "name": "Calculate expression",
+      "description": "Safely evaluate bounded arithmetic, not code. Not a financial precision calculator.",
+      "status": "completed",
+      "revision": 3
+    },
+    {
+      "type": "result",
+      "id": "calculator",
+      "title": "Calculate expression",
+      "text": "15.0",
+      "revision": 4
+    },
+    {
+      "type": "tool",
+      "id": "approval",
+      "name": "Check current time",
+      "description": "Get the real current time, optionally at a specified UTC offset.",
+      "status": "selected",
+      "revision": 5
+    },
+    {
+      "type": "tool",
+      "id": "approval",
+      "name": "Check current time",
+      "description": "Read the current time?",
+      "status": "confirmation_required",
+      "confirmation_id": "fixture-confirmation-token-123456",
+      "revision": 6
+    },
+    {
+      "type": "tool",
+      "id": "approval",
+      "name": "Check current time",
+      "description": "The action was declined. Nothing was changed.",
+      "status": "failed",
+      "revision": 7
+    },
+    {
+      "type": "tool",
+      "id": "mcp-clock",
+      "name": "Check external demo clock",
+      "description": "Read the actual UTC time from the local MCP demo server.",
+      "status": "selected",
+      "revision": 8
+    },
+    {
+      "type": "tool",
+      "id": "mcp-clock",
+      "name": "Check external demo clock",
+      "description": "Read the actual UTC time from the local MCP demo server.",
+      "status": "running",
+      "revision": 9
+    },
+    {
+      "type": "tool",
+      "id": "mcp-clock",
+      "name": "Check external demo clock",
+      "description": "Read the actual UTC time from the local MCP demo server.",
+      "status": "completed",
+      "revision": 10
+    },
+    {
+      "type": "tool",
+      "id": "status-unknown",
+      "name": "Check current time",
+      "description": "Get the real current time, optionally at a specified UTC offset.",
+      "status": "unknown",
+      "revision": 11
+    },
+    {
+      "type": "tool",
+      "id": "status-cancelled",
+      "name": "Check current time",
+      "description": "Get the real current time, optionally at a specified UTC offset.",
+      "status": "cancelled",
+      "revision": 12
+    },
+    {
+      "type": "error",
+      "code": "provider_unavailable",
+      "message": "A voice service is unavailable. Try again shortly, or reconnect if the session has ended.",
+      "revision": 13
+    },
+    {
+      "type": "error",
+      "code": "transcription_timeout",
+      "message": "No speech transcript was received. Please try again, check your microphone, or use text input.",
+      "revision": 14
+    },
+    {
+      "type": "interrupted"
+    },
+    {
+      "type": "tool",
+      "id": "study-plan",
+      "name": "Create a study plan",
+      "description": "Build a suggested 1–7 day study routine for a topic. This does not schedule events or save a student record.",
+      "status": "selected",
+      "revision": 1
+    },
+    {
+      "type": "tool",
+      "id": "study-plan",
+      "name": "Create a study plan",
+      "description": "Build a suggested 1–7 day study routine for a topic. This does not schedule events or save a student record.",
+      "status": "running",
+      "revision": 2
+    },
+    {
+      "type": "tool",
+      "id": "study-plan",
+      "name": "Create a study plan",
+      "description": "Build a suggested 1–7 day study routine for a topic. This does not schedule events or save a student record.",
+      "status": "completed",
+      "revision": 3
+    },
+    {
+      "type": "result",
+      "id": "study-plan",
+      "title": "Create a study plan",
+      "text": "2 sessions, 60 minutes total.",
+      "card_type": "study_plan",
+      "data": {
+        "topic": "Fractions",
+        "total_minutes": 60,
+        "sessions": [
+          {
+            "day": 1,
+            "focus": "Review the basics",
+            "minutes": 30
+          },
+          {
+            "day": 2,
+            "focus": "Practice worked examples",
+            "minutes": 30
+          }
+        ]
+      },
+      "revision": 4
+    },
+    {
+      "type": "tool",
+      "id": "native-done",
+      "name": "Agent action",
+      "description": "An agent action was selected.",
+      "status": "running"
+    },
+    {
+      "type": "tool",
+      "id": "native-done",
+      "name": "Agent action",
+      "status": "done"
+    },
+    {
+      "type": "tool",
+      "id": "native-error",
+      "name": "Agent action",
+      "description": "An agent action was selected.",
+      "status": "running"
+    },
+    {
+      "type": "tool",
+      "id": "native-error",
+      "name": "Agent action",
+      "status": "error"
+    }
+  ],
+  "rpc": [
+    {
+      "method": "voice.usecase_config",
+      "request": {},
+      "response": {
+        "schema_version": 1,
+        "id": "general_assistant",
+        "name": "Voice Workbench",
+        "description": "A foundation for real conversations",
+        "languages": [
+          "en"
+        ],
+        "result_card_types": [
+          "text"
+        ],
+        "notice": ""
+      }
+    },
+    {
+      "method": "voice.tools_state",
+      "request": {},
+      "response": [
+        {
+          "type": "tool",
+          "id": "approval",
+          "name": "Check current time",
+          "description": "Read the current time?",
+          "status": "confirmation_required",
+          "confirmation_id": "fixture-confirmation-token-123456",
+          "revision": 6
+        },
+        {
+          "type": "tool",
+          "id": "calculator",
+          "name": "Calculate expression",
+          "description": "Safely evaluate bounded arithmetic, not code. Not a financial precision calculator.",
+          "status": "completed",
+          "revision": 3
+        }
+      ]
+    },
+    {
+      "method": "voice.confirm_tool",
+      "request": {
+        "confirmation_id": "fixture-confirmation-token-123456",
+        "approved": false
+      },
+      "response": {
+        "accepted": true
+      }
+    },
+    {
+      "method": "voice.interrupt",
+      "request": {},
+      "response": {
+        "interrupted": true
+      }
+    },
+    {
+      "method": "voice.usecase_config",
+      "request": {},
+      "response": {
+        "schema_version": 1,
+        "id": "education",
+        "name": "Study Companion",
+        "description": "Try a suggested study routine, built by a deterministic demo tool.",
+        "languages": [
+          "en"
+        ],
+        "result_card_types": [
+          "text",
+          "study_plan"
+        ],
+        "notice": "Education demo only. No student records, calendar writes or validated curriculum."
+      }
+    }
+  ],
+  "errors": [
+    {
+      "code": 2001,
+      "message": "Caller is not the linked session participant"
+    },
+    {
+      "code": 2002,
+      "message": "Confirmation is invalid, expired or already answered"
+    },
+    {
+      "code": 2005,
+      "message": "Invalid workbench request",
+      "data": "{\"code\": \"invalid_request\", \"method\": \"voice.interrupt\"}"
+    },
+    {
+      "code": 2002,
+      "message": "Confirmation is invalid, expired or already answered",
+      "data": "{\"code\": \"invalid_request\", \"method\": \"voice.confirm_tool\"}"
+    },
+    {
+      "code": 2003,
+      "message": "A non-cancellable action is in progress; check its outcome"
+    },
+    {
+      "code": 2004,
+      "message": "Interruption timed out; reconnect the session"
+    },
+    {
+      "code": 2006,
+      "message": "Invalid workbench response",
+      "data": "{\"code\": \"invalid_response\", \"method\": \"voice.tools_state\"}"
+    },
+    {
+      "code": 1400,
+      "message": "Method not supported at destination"
+    }
+  ]
+}

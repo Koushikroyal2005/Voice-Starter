@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, Mock
 import pytest
 from livekit import rtc
 
-from app.agents.orchestrator import Orchestrator
+from app.bootstrap import build_orchestrator
 from app.services.workbench import install_workbench
 from app.tools.common.time import TIME_TOOL
 
@@ -126,7 +126,7 @@ def test_concurrent_shutdown_flushes_history_before_exporters(monkeypatch):
                     closed = True
 
         session.aclose = close_session
-        orchestrator = Orchestrator(SimpleNamespace(tool_allowlist=()))
+        orchestrator = build_orchestrator(SimpleNamespace(tool_allowlist=()))
 
         async def executor_close():
             order.append("tools_closed")
@@ -224,7 +224,9 @@ def test_only_actual_interrupted_items_emit_interruption():
 def test_confirmation_rpc_is_linked_human_only_and_rejects_replay():
     async def run():
         ctx, session, handlers, _ = bridge()
-        orchestrator = Orchestrator(SimpleNamespace(tool_allowlist=(TIME_TOOL.name,)))
+        orchestrator = build_orchestrator(
+            SimpleNamespace(tool_allowlist=(TIME_TOOL.name,))
+        )
         orchestrator.registry.remove(TIME_TOOL.name)
         orchestrator.registry.register(
             replace(

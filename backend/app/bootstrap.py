@@ -2,8 +2,11 @@
 
 from app.agents.orchestrator import Orchestrator
 from app.config.settings import Settings
+from app.tools.common.calculator import CALCULATOR_TOOL
+from app.tools.common.time import TIME_TOOL
 from app.usecases.base import apply_tool_policies
 from app.usecases.registry import registry as usecases
+from app.workflows.time_calculation import WORKFLOW_TOOL
 
 
 def build_orchestrator(settings: Settings) -> Orchestrator:
@@ -14,9 +17,52 @@ def build_orchestrator(settings: Settings) -> Orchestrator:
             settings.tool_allowlist,
             settings.infrastructure,
         )
-    definitions = apply_tool_policies(profile, profile.tool_factory())
-    if not getattr(settings, "mcp_enabled", False):
-        return Orchestrator(settings, additional_tools=definitions)
+    definitions = (TIME_TOOL, CALCULATOR_TOOL, WORKFLOW_TOOL, *profile.tool_factory())
+    external = (
+        _approved_mcp(settings, profile)
+        if getattr(settings, "mcp_enabled", False)
+        else None
+    )
+    if external:
+        definitions = (*definitions, *external.definitions.values())
+
+    # The single initial policy boundary. Each definition is prepared exactly
+    # once; keep external policy errors sanitized as before.
+    prepared = []
+    for definition in definitions:
+        try:
+            prepared.extend(apply_tool_policies(profile, (definition,)))
+        except ValueError:
+            if external and definition is external.definitions.get(definition.name):
+                _invalid_mcp()
+            raise
+    if external:
+        external.definitions = {
+            tool.name: tool for tool in prepared if tool.name in external.definitions
+        }
+    orchestrator = Orchestrator(
+        use_case=profile,
+        tool_definitions=tuple(prepared),
+        allowlist=frozenset(settings.tool_allowlist),
+        language=getattr(getattr(settings, "stt", None), "language", None),
+        deferred_tools=frozenset(external.definitions) if external else frozenset(),
+    )
+    if external:
+        external.orchestrator = orchestrator
+        orchestrator.external_tools = external
+    return orchestrator
+
+
+def _invalid_mcp():
+    from app.config.settings import ConfigurationError
+
+    raise ConfigurationError(
+        "Invalid MCP policy/configuration; review the backend schemas and MCP guide"
+    ) from None
+
+
+def _approved_mcp(settings, profile):
+    """Prepare reviewed definitions without launching or connecting any servers."""
     # Lazy imports: MCP-disabled conversations need neither package nor config file.
     from app.mcp.config import load_config
 
@@ -40,24 +86,6 @@ def build_orchestrator(settings: Settings) -> Orchestrator:
                     ]
                 }
             )
-        registry = MCPRegistry(config, frozenset(settings.tool_allowlist))
-        registry.definitions = {
-            tool.name: tool
-            for tool in apply_tool_policies(
-                profile, tuple(registry.definitions.values())
-            )
-        }
+        return MCPRegistry(config, frozenset(settings.tool_allowlist))
     except Exception:
-        from app.config.settings import ConfigurationError
-
-        raise ConfigurationError(
-            "Invalid MCP policy/configuration; review the backend schemas and MCP guide"
-        ) from None
-    orchestrator = Orchestrator(
-        settings,
-        additional_tools=(*definitions, *registry.definitions.values()),
-        deferred_tools=frozenset(registry.definitions),
-    )
-    registry.orchestrator = orchestrator
-    orchestrator.external_tools = registry
-    return orchestrator
+        _invalid_mcp()

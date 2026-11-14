@@ -28,6 +28,7 @@ jobs:
 
       - name: TypeScript and frontend contracts
         run: |
+          pnpm contracts:check
           pnpm typecheck
           pnpm test
           pnpm security:secrets

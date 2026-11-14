@@ -10,9 +10,16 @@ from livekit.agents import AgentSession, JobContext
 
 from app.agents.orchestrator import Orchestrator
 from app.tools.base import ToolFailure
+from app.workbench.contracts import (
+    TOPIC,
+    ContractError,
+    encode_event,
+    encode_response,
+    parse_request,
+    validation_error,
+)
 
 logger = logging.getLogger("voice-starter.workbench")
-TOPIC = "voice.workbench.v1"
 
 
 async def install_workbench(
@@ -23,15 +30,15 @@ async def install_workbench(
 ) -> None:
     tasks: set[asyncio.Task] = set()
     names: dict[str, str] = {}
-    queue: asyncio.Queue[dict] = asyncio.Queue(maxsize=128)
+    queue: asyncio.Queue[str] = asyncio.Queue(maxsize=128)
 
-    async def publish(event: dict) -> None:
+    async def publish(event: str) -> None:
         participant = session.room_io.linked_participant
         if participant is None:
             return
         try:
             await ctx.room.local_participant.publish_data(
-                json.dumps(event),
+                event,
                 reliable=True,
                 topic=TOPIC,
                 destination_identities=[participant.identity],
@@ -41,7 +48,9 @@ async def install_workbench(
 
     def emit(event: dict) -> None:
         try:
-            queue.put_nowait(event)
+            queue.put_nowait(encode_event(event))
+        except ContractError:
+            logger.warning("Invalid workbench event; event not delivered")
         except asyncio.QueueFull:
             logger.warning("Workbench event queue full; event not delivered")
 
@@ -59,32 +68,39 @@ async def install_workbench(
             raise rtc.RpcError(2001, "Caller is not the linked session participant")
         return participant.identity
 
+    def request(method, data):
+        try:
+            return parse_request(method, getattr(data, "payload", "{}"))
+        except ContractError:
+            raise validation_error(method) from None
+
+    def response(method, value):
+        try:
+            return encode_response(method, value)
+        except ContractError:
+            raise validation_error(method, response=True) from None
+
     if orchestrator:
         orchestrator.event_sink = emit
 
         @ctx.room.local_participant.register_rpc_method("voice.usecase_config")
         async def usecase_config(data: rtc.RpcInvocationData) -> str:
             linked_caller(data)
-            return orchestrator.public_use_case.model_dump_json()
+            request("voice.usecase_config", data)
+            return response(
+                "voice.usecase_config",
+                orchestrator.public_use_case.model_dump(mode="json"),
+            )
 
         @ctx.room.local_participant.register_rpc_method("voice.confirm_tool")
         async def confirm_tool(data: rtc.RpcInvocationData) -> str:
             actor = linked_caller(data)
+            payload = request("voice.confirm_tool", data)
             try:
-                if len(data.payload) > 512:
-                    raise ValueError
-                payload = json.loads(data.payload)
-                if (
-                    not isinstance(payload, dict)
-                    or set(payload) != {"confirmation_id", "approved"}
-                    or type(payload["approved"]) is not bool
-                    or not isinstance(payload["confirmation_id"], str)
-                ):
-                    raise ValueError
                 orchestrator.executor.confirmations.resolve(
                     payload["confirmation_id"], actor, payload["approved"]
                 )
-                return '{"accepted":true}'
+                return response("voice.confirm_tool", {"accepted": True})
             except (ValueError, KeyError, TypeError, ToolFailure):
                 raise rtc.RpcError(
                     2002, "Confirmation is invalid, expired or already answered"
@@ -93,6 +109,7 @@ async def install_workbench(
         @ctx.room.local_participant.register_rpc_method("voice.tools_state")
         async def tools_state(data: rtc.RpcInvocationData) -> str:
             linked_caller(data)
+            request("voice.tools_state", data)
             activities = list(orchestrator.activities.values())
             active = [
                 a
@@ -105,7 +122,7 @@ async def install_workbench(
                 candidate = snapshot + [activity]
                 if len(json.dumps(candidate, ensure_ascii=False).encode()) <= 14000:
                     snapshot = candidate
-            return json.dumps(snapshot, ensure_ascii=False)
+            return response("voice.tools_state", snapshot)
 
         @session.on("user_state_changed")
         def on_user_state(event):
@@ -134,6 +151,7 @@ async def install_workbench(
     @ctx.room.local_participant.register_rpc_method("voice.interrupt")
     async def interrupt(data: rtc.RpcInvocationData) -> str:
         linked_caller(data)
+        request("voice.interrupt", data)
         started = time.monotonic()
         if orchestrator:
             await orchestrator.executor.cancel_safe()
@@ -154,7 +172,7 @@ async def install_workbench(
             orchestrator.telemetry.event(
                 "interruption_rpc", duration=time.monotonic() - started
             )
-        return '{"interrupted":true}'
+        return response("voice.interrupt", {"interrupted": True})
 
     @session.on("conversation_item_added")
     def on_item(event):

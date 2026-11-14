@@ -9,11 +9,13 @@ from pydantic import Field
 
 from app.agents.conversation import ConversationState
 from app.agents.orchestrator import MainAgent, Orchestrator
+from app.bootstrap import build_orchestrator
 from app.tools.base import Schema, ToolDefinition, ToolFailure
 from app.tools.common.calculator import CALCULATOR_TOOL, calculate
 from app.tools.common.time import TIME_TOOL
 from app.tools.executor import ToolExecutor
 from app.tools.registry import ToolRegistry
+from app.usecases.registry import registry as usecases
 from app.workflows.time_calculation import WORKFLOW_TOOL
 
 
@@ -385,7 +387,7 @@ def test_actual_livekit_registration_adapter_interruption_and_removal():
             tool_allowlist=(TIME_TOOL.name, CALCULATOR_TOOL.name, WORKFLOW_TOOL.name),
             instructions="Test",
         )
-        orchestrator = Orchestrator(settings)
+        orchestrator = build_orchestrator(settings)
         orchestrator.state.actor_id = "human"
         agent = MainAgent(settings, orchestrator)
         assert isinstance(agent, Agent)
@@ -411,7 +413,7 @@ def test_actual_livekit_registration_adapter_interruption_and_removal():
         await orchestrator.register(mock_agent, TIME_TOOL)
         assert TIME_TOOL.name in [t.id for t in orchestrator.tools()]
         with pytest.raises(ValueError):
-            Orchestrator(SimpleNamespace(tool_allowlist=("unsupported",)))
+            build_orchestrator(SimpleNamespace(tool_allowlist=("unsupported",)))
 
     asyncio.run(run())
 
@@ -490,8 +492,11 @@ def test_registration_requires_explicit_policy_and_supports_app_composition():
     with pytest.raises(ValueError):
         replace(TIME_TOOL, sensitive=True)
     extra = replace(TIME_TOOL, name="use_case_time", title="Use-case clock")
-    settings = SimpleNamespace(tool_allowlist=(extra.name,), instructions="Demo")
-    orchestrator = Orchestrator(settings, additional_tools=(extra,))
+    orchestrator = Orchestrator(
+        use_case=usecases.get(),
+        tool_definitions=(extra,),
+        allowlist=frozenset({extra.name}),
+    )
     assert [t.id for t in orchestrator.tools()] == [extra.name]
 
 
@@ -528,8 +533,9 @@ def test_native_adapter_stops_inflight_read_on_speech_interruption():
             "read_slow", "Read test value", "Test read", Empty, Value, read
         )
         orchestrator = Orchestrator(
-            SimpleNamespace(tool_allowlist=(definition.name,)),
-            additional_tools=(definition,),
+            use_case=usecases.get(),
+            tool_definitions=(definition,),
+            allowlist=frozenset({definition.name}),
         )
         orchestrator.state.actor_id = "human"
 

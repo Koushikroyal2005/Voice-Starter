@@ -25,6 +25,25 @@ for model downloads, not `python -m livekit.agents download-files`.
 
 ## Layer boundaries
 
+`app/bootstrap.py:build_orchestrator` is the initial composition root: it resolves
+the use case, assembles builtin/domain/approved MCP definitions and applies policy
+exactly once per definition before constructing `Orchestrator`. The orchestrator
+requires an explicit `use_case`, `tool_definitions` and `allowlist`; it does not
+select a profile or add builtin tools. Dynamic `register()` still checks the
+configured allowlist and applies the resolved profile's policies.
+
+Construct agents explicitly: `MainAgent(settings, build_orchestrator(settings))`.
+`main.py` already passes this dependency; roomless evaluation now also uses the
+root while explicitly disabling MCP. Settings still resolves profile defaults
+during environment validation; this change does not redesign configuration parsing.
+Evaluation composition now follows bootstrap's existing profile validation too;
+scenario/provider language overrides must comply with the selected use case.
+
+Lifecycle ownership is intentionally unchanged. Future work may replace mutable
+`external_tools`, `event_sink`, `close_infrastructure`, telemetry/rate-limit wiring
+and the cleanup barrier with explicit handles. Do not move cleanup or change its
+ordering as part of composition changes.
+
 - `config/`: environment validation and secret-safe errors.
 - `providers/`: native plugin constructors/capabilities; do not buffer streamed
   output into strings or duplicate LiveKit audio processing.

@@ -8,7 +8,7 @@ from alembic import command
 from alembic.config import Config
 from sqlalchemy import select
 
-from app.agents.orchestrator import Orchestrator
+from app.bootstrap import build_orchestrator
 from app.config.infrastructure import InfrastructureSettings
 from app.database.connection import Database
 from app.database.models import Conversation, ToolExecution, Turn
@@ -49,7 +49,7 @@ def test_real_session_events_are_persisted_and_flushed(monkeypatch, tmp_path):
                 owner_namespace="tenant",
             ),
         )
-        orchestrator = Orchestrator(settings)
+        orchestrator = build_orchestrator(settings)
         orchestrator.state.actor_id = "authenticated-user"
         await infrastructure.install_infrastructure(
             ctx, session, orchestrator, settings

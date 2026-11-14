@@ -1,0 +1,11 @@
+export function validateEvent(value: unknown): boolean;
+export function validateRpc(value: unknown): boolean;
+export function validatePublicUseCase(value: unknown): boolean;
+export function validateToolsState(value: unknown): boolean;
+export function validateConfirmationRequest(value: unknown): boolean;
+export function validateAccepted(value: unknown): boolean;
+export function validateInterrupted(value: unknown): boolean;
+export function validateEmptyRequest(value: unknown): boolean;
+export function validateRpcError(value: unknown): boolean;
+export function validateCardType(value: unknown): boolean;
+export function validateResultData(value: unknown): boolean;

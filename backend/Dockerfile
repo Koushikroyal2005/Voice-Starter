@@ -10,6 +10,7 @@ COPY pyproject.toml uv.lock ./
 RUN uv sync --locked --no-dev --extra mcp --extra telemetry
 RUN useradd --create-home --uid 10001 voice
 COPY --chown=voice:voice app ./app
+COPY --from=contracts --chown=voice:voice /voice-workbench/v1 /contracts/voice-workbench/v1
 COPY --chown=voice:voice alembic.ini mcp.demo.example.json mcp.external.example.json ./
 USER voice
 # Model assets only; this command explicitly bypasses credential validation.

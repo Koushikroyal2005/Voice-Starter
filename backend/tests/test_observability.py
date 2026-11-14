@@ -9,7 +9,7 @@ from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
-from app.agents.orchestrator import Orchestrator
+from app.bootstrap import build_orchestrator
 from app.config.settings import ConfigurationError, Settings
 from app.evaluation.run import SCENARIOS
 from app.evaluation.scoring import summarize, transcription_scores
@@ -47,7 +47,7 @@ class Capture:
 
 def observer():
     session, capture = Session(), Capture()
-    orchestrator = Orchestrator(NS(tool_allowlist=("calculate_expression",)))
+    orchestrator = build_orchestrator(NS(tool_allowlist=("calculate_expression",)))
     monitor = SessionObserver(session, orchestrator, capture, monotonic=lambda: 20)
     return session, orchestrator, capture, monitor
 

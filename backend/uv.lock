@@ -1849,6 +1849,7 @@ source = { virtual = "." }
 dependencies = [
     { name = "alembic" },
     { name = "asyncpg" },
+    { name = "jsonschema" },
     { name = "livekit-agents", extra = ["assemblyai", "cartesia", "deepgram", "elevenlabs", "google", "murf", "openai", "silero"] },
     { name = "opentelemetry-api" },
     { name = "opentelemetry-exporter-otlp-proto-http" },
@@ -1856,12 +1857,12 @@ dependencies = [
     { name = "pydantic" },
     { name = "python-dotenv" },
     { name = "redis" },
+    { name = "referencing" },
     { name = "sqlalchemy", extra = ["asyncio"] },
 ]
 
 [package.optional-dependencies]
 mcp = [
-    { name = "jsonschema" },
     { name = "livekit-agents", extra = ["mcp"] },
     { name = "mcp" },
 ]
@@ -1881,7 +1882,7 @@ dev = [
 requires-dist = [
     { name = "alembic", specifier = ">=1.16,<2" },
     { name = "asyncpg", specifier = ">=0.30,<1" },
-    { name = "jsonschema", marker = "extra == 'mcp'", specifier = ">=4.23,<5" },
+    { name = "jsonschema", specifier = ">=4.23,<5" },
     { name = "livekit-agents", extras = ["deepgram", "openai", "cartesia", "silero", "assemblyai", "google", "elevenlabs", "murf"], specifier = "==1.8.12" },
     { name = "livekit-agents", extras = ["mcp"], marker = "extra == 'mcp'", specifier = "==1.8.12" },
     { name = "mcp", marker = "extra == 'mcp'", specifier = ">=2.3,<3" },
@@ -1892,6 +1893,7 @@ requires-dist = [
     { name = "pydantic", specifier = ">=2.10,<3" },
     { name = "python-dotenv", specifier = ">=1.0,<2" },
     { name = "redis", specifier = ">=6,<8" },
+    { name = "referencing", specifier = ">=0.36,<1" },
     { name = "sentry-sdk", marker = "extra == 'telemetry'", specifier = ">=2,<3" },
     { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0.40,<2.1" },
 ]

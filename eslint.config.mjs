@@ -10,6 +10,8 @@ const compat = new FlatCompat({
 });
 
 const eslintConfig = [
+  // Mechanical output is checked by contracts:check and TypeScript, not hand lint rules.
+  { ignores: ['lib/workbench/generated/**'] },
   ...compat.extends(
     'next/core-web-vitals',
     'next/typescript',

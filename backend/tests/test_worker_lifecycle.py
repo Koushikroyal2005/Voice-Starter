@@ -27,11 +27,16 @@ def test_session_closes_job_and_uses_client_disconnect_cleanup(monkeypatch):
         ),
     )
     monkeypatch.setattr(main, "create_session", lambda _: session)
-    monkeypatch.setattr(main, "build_orchestrator", Mock())
-    monkeypatch.setattr(main, "MainAgent", Mock())
+    orchestrator = Mock()
+    compose = Mock(return_value=orchestrator)
+    agent = Mock()
+    monkeypatch.setattr(main, "build_orchestrator", compose)
+    monkeypatch.setattr(main, "MainAgent", agent)
     monkeypatch.setattr(main, "install_workbench", AsyncMock())
     monkeypatch.setattr(main, "install_observability", Mock())
     asyncio.run(main.voice_session(ctx))
+    compose.assert_called_once()
+    agent.assert_called_once_with(compose.call_args.args[0], orchestrator)
     assert session.start.call_args.kwargs["room"] is ctx.room
     assert session.start.call_args.kwargs["room_options"].close_on_disconnect is True
     ctx.connect.assert_awaited_once()

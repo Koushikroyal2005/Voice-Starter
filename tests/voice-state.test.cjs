@@ -1,20 +1,9 @@
 const assert = require('node:assert/strict');
-const { readFileSync } = require('node:fs');
-const path = require('node:path');
 const test = require('node:test');
-const vm = require('node:vm');
-const ts = require('typescript');
-const exportsObject = {};
-const filename = path.resolve(__dirname, '../components/voice/state.ts');
-vm.runInNewContext(
-  ts.transpileModule(readFileSync(filename, 'utf8'), {
-    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
-  }).outputText,
-  { exports: exportsObject, Error },
-  { filename }
+const { load } = require('./helpers/load-typescript.cjs');
+const { deriveVoiceState, parseWorkerEvent, mediaErrorMessage, mergeToolActivities } = load(
+  'components/voice/state.ts'
 );
-const { deriveVoiceState, parseWorkerEvent, mediaErrorMessage, mergeToolActivities } =
-  exportsObject;
 test('worker failures show safe feedback and reject arbitrary error messages', () => {
   const event = parseWorkerEvent(
     JSON.stringify({ type: 'error', code: 'provider_unavailable', message: 'private-secret' })

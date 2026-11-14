@@ -5,6 +5,16 @@ Use Docker Desktop with Linux containers and a current Compose v2 supporting
 optional `env_file` entries and optional health dependencies. Node 24 and Python
 3.13 images match local development. The worker waits for Redis health when its
 profile is selected, but Redis is not a mandatory dependency when disabled.
+The worker build also uses Compose `additional_contexts` / BuildKit named contexts
+to copy the single shared contract directory outside its backend build context.
+For a standalone image build from the repository root use:
+
+```powershell
+docker build --build-context contracts=./contracts -f backend/Dockerfile backend
+```
+
+Compose supplies that named context automatically. Do not copy schema files into
+backend source or maintain a second schema set.
 
 ## PowerShell
 

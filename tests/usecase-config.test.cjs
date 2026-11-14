@@ -1,22 +1,6 @@
 const assert = require('node:assert/strict');
-const { readFileSync } = require('node:fs');
-const path = require('node:path');
 const test = require('node:test');
-const vm = require('node:vm');
-const ts = require('typescript');
-
-function load(relative) {
-  const filename = path.resolve(__dirname, '..', relative);
-  const exports = {};
-  vm.runInNewContext(
-    ts.transpileModule(readFileSync(filename, 'utf8'), {
-      compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
-    }).outputText,
-    { exports },
-    { filename }
-  );
-  return exports;
-}
+const { load } = require('./helpers/load-typescript.cjs');
 const { DEFAULT_USE_CASE, parseUseCaseConfig } = load('lib/usecase-config.ts');
 const { parseStudyPlan } = load('components/usecases/education/study-plan.ts');
 const { parseWorkerEvent } = load('components/voice/state.ts');

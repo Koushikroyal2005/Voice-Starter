@@ -10,33 +10,30 @@ from livekit.agents.llm import ToolFlag
 from app.agents.conversation import ConversationState
 from app.config.settings import Settings
 from app.tools.base import ToolDefinition
-from app.tools.common.calculator import CALCULATOR_TOOL
-from app.tools.common.time import TIME_TOOL
 from app.tools.executor import ToolExecutor
 from app.tools.registry import ToolRegistry
-from app.usecases.base import apply_tool_policies
-from app.usecases.registry import registry as usecases
-from app.workflows.time_calculation import WORKFLOW_TOOL
+from app.usecases.base import UseCase, apply_tool_policies
 
 
 class Orchestrator:
     def __init__(
         self,
-        settings: Settings,
-        additional_tools: tuple[ToolDefinition, ...] = (),
+        *,
+        use_case: UseCase,
+        tool_definitions: tuple[ToolDefinition, ...],
+        allowlist: frozenset[str],
+        language: str | None = None,
         deferred_tools: frozenset[str] = frozenset(),
     ):
         self.state = ConversationState(str(uuid4()))
-        self.use_case = usecases.get(getattr(settings, "use_case", "general_assistant"))
-        self.public_use_case = self.use_case.public_config(
-            getattr(getattr(settings, "stt", None), "language", None)
-        )
+        # Initial definitions are prepared by bootstrap; only runtime registration
+        # applies policy here. No registry lookup or hidden builtin assembly.
+        self.use_case = use_case
+        self.public_use_case = self.use_case.public_config(language)
         self.registry = ToolRegistry()
-        for tool in (TIME_TOOL, CALCULATOR_TOOL, WORKFLOW_TOOL, *additional_tools):
-            # Policies can tighten builtin tools too, never remove native safeguards.
-            tool = apply_tool_policies(self.use_case, (tool,))[0]
+        for tool in tool_definitions:
             self.registry.register(tool)
-        self.allowlist = frozenset(settings.tool_allowlist)
+        self.allowlist = frozenset(allowlist)
         self.configured_allowlist = self.allowlist
         self.registry.selected(self.allowlist)  # Fail closed for unknown configuration.
         self.allowlist = self.allowlist - deferred_tools
@@ -169,11 +166,7 @@ class Orchestrator:
 
 
 class MainAgent(Agent):
-    def __init__(self, settings: Settings, orchestrator: Orchestrator | None = None):
-        if orchestrator is None:
-            from app.bootstrap import build_orchestrator
-
-            orchestrator = build_orchestrator(settings)
+    def __init__(self, settings: Settings, orchestrator: Orchestrator):
         super().__init__(
             instructions=settings.instructions
             + f"\nYour assistant display name is {orchestrator.use_case.name}. "

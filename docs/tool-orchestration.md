@@ -183,10 +183,12 @@ explicit opt-in formatter; arbitrary raw arguments/results are never auto-forwar
 2. Create a `ToolDefinition`. For a read-only example, a distance-conversion
    handler can compute `miles = kilometers / 1.609344` from a bounded numeric input.
    Use typed schemas, a human-readable title, a bounded timeout and a permission.
-3. Import the definition in `app/bootstrap.py` and pass it via
-   `Orchestrator(settings, additional_tools=(YOUR_TOOL,))`. Add its registered name
-   to `TOOL_ALLOWLIST`. No change to `MainAgent`, provider factories, the executor,
-   transport bridge or React shell is needed.
+3. Return the definition from your use-case module's `tool_factory` and register
+   the module in the reviewed use-case registry. `app/bootstrap.py` assembles
+   builtin, use-case and approved MCP definitions and applies initial policy once
+   per definition before passing them explicitly to `Orchestrator`. Add its name
+   to the use-case tool policy and `TOOL_ALLOWLIST`. No change to `MainAgent`,
+   provider factories, the executor, transport bridge or React shell is needed.
 4. For a write, inject a deterministic business service, require an application
    permission and human confirmation, and implement durable/external idempotency.
    Never expose SQL, table names, unrestricted query tools or database credentials

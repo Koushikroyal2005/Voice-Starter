@@ -1,3 +1,5 @@
+import { type ResultEvent, type ToolEvent, parseWireEvent } from '@/lib/workbench/contracts';
+
 export type VoiceState =
   | 'idle'
   | 'connecting'
@@ -34,31 +36,17 @@ export function deriveVoiceState(s: Snapshot): VoiceState {
   if (s.agent === 'speaking' || s.agent === 'thinking' || s.agent === 'listening') return s.agent;
   return 'connecting';
 }
-export interface ToolActivity {
-  id: string;
-  name: string;
-  status:
-    | 'selected'
-    | 'running'
-    | 'completed'
-    | 'failed'
-    | 'confirmation_required'
-    | 'unknown'
-    | 'done'
-    | 'error'
-    | 'cancelled';
-  description?: string;
-  confirmationId?: string;
+// UI view models derive wire fields; camelCase/history are local presentation.
+export type ToolActivity = Pick<
+  ToolEvent,
+  'id' | 'name' | 'status' | 'description' | 'revision'
+> & {
+  confirmationId?: ToolEvent['confirmation_id'];
   phases?: string[];
-  revision?: number;
-}
-export interface VoiceResult {
-  id: string;
-  title: string;
-  text: string;
-  cardType?: string;
-  data?: Record<string, unknown>;
-}
+};
+export type VoiceResult = Pick<ResultEvent, 'id' | 'title' | 'text' | 'data'> & {
+  cardType?: ResultEvent['card_type'];
+};
 export function mergeToolActivities(
   previous: ToolActivity[],
   incoming: ToolActivity
@@ -83,82 +71,44 @@ export type WorkerEvent =
   | { type: 'result'; result: VoiceResult };
 // Caller must also authenticate the packet's participant against the connected agent.
 export function parseWorkerEvent(raw: string): WorkerEvent | null {
-  if (raw.length > 16384) return null;
-  try {
-    const v = JSON.parse(raw);
-    if (!v || typeof v !== 'object') return null;
-    if (v.type === 'interrupted') return { type: 'interrupted' };
-    if (v.type === 'error' && v.code === 'provider_unavailable')
-      return {
-        type: 'error',
-        message:
-          'A voice service is unavailable. Try again shortly, or reconnect if the session has ended.',
-      };
-    if (v.type === 'error' && v.code === 'transcription_timeout')
-      return {
-        type: 'error',
-        message:
-          'No speech transcript was received. Check your microphone, try again, or use text input.',
-      };
-    if (
-      v.type === 'tool' &&
-      typeof v.id === 'string' &&
-      v.id.length <= 200 &&
-      typeof v.name === 'string' &&
-      v.name.length <= 200 &&
-      (v.revision === undefined || (Number.isSafeInteger(v.revision) && v.revision >= 0)) &&
-      [
-        'selected',
-        'running',
-        'completed',
-        'failed',
-        'confirmation_required',
-        'unknown',
-        'done',
-        'error',
-        'cancelled',
-      ].includes(v.status) &&
-      (v.description === undefined ||
-        (typeof v.description === 'string' && v.description.length <= 1000)) &&
-      (v.status !== 'confirmation_required' ||
-        (typeof v.confirmation_id === 'string' &&
-          v.confirmation_id.length >= 20 &&
-          v.confirmation_id.length <= 100))
-    )
-      return {
-        type: 'tool',
-        tool: {
-          id: v.id,
-          name: v.name,
-          status: v.status,
-          description: v.description,
-          revision: v.revision,
-          confirmationId: v.status === 'confirmation_required' ? v.confirmation_id : undefined,
-        },
-      };
-    if (
-      v.type === 'result' &&
-      typeof v.id === 'string' &&
-      typeof v.title === 'string' &&
-      typeof v.text === 'string' &&
-      v.title.length <= 200
-    )
-      return {
-        type: 'result',
-        result: {
-          id: v.id.slice(0, 200),
-          title: v.title,
-          text: v.text,
-          cardType:
-            typeof v.card_type === 'string' && /^[a-z][a-z0-9_]{0,47}$/.test(v.card_type)
-              ? v.card_type
-              : undefined,
-          data: v.data && typeof v.data === 'object' && !Array.isArray(v.data) ? v.data : undefined,
-        },
-      };
-  } catch {
-    /* Ignore invalid or unrelated room data. */
-  }
+  const v = parseWireEvent(raw);
+  if (!v) return null;
+  if (v.type === 'interrupted') return { type: 'interrupted' };
+  if (v.type === 'error' && v.code === 'provider_unavailable')
+    return {
+      type: 'error',
+      message:
+        'A voice service is unavailable. Try again shortly, or reconnect if the session has ended.',
+    };
+  if (v.type === 'error' && v.code === 'transcription_timeout')
+    return {
+      type: 'error',
+      message:
+        'No speech transcript was received. Check your microphone, try again, or use text input.',
+    };
+  if (v.type === 'tool')
+    return {
+      type: 'tool',
+      tool: {
+        id: v.id,
+        name: v.name,
+        status: v.status,
+        description: v.description,
+        revision: v.revision,
+        confirmationId: v.status === 'confirmation_required' ? v.confirmation_id : undefined,
+      },
+    };
+  if (v.type === 'result')
+    return {
+      type: 'result',
+      result: {
+        id: v.id,
+        title: v.title,
+        text: v.text,
+        cardType: v.card_type,
+        data: v.data,
+      },
+    };
   return null;
 }
 export function mediaErrorMessage(error: unknown): string {

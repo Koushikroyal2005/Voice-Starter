@@ -4,6 +4,7 @@ import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 import { DisconnectReason, type RemoteParticipant, RoomEvent } from 'livekit-client';
 import { useAgent, useSessionContext, useSessionMessages } from '@livekit/components-react';
 import { DEFAULT_USE_CASE, parseUseCaseConfig } from '@/lib/usecase-config';
+import { WORKBENCH_TOPIC, encodeRpcRequest, parseRpcResponse } from '@/lib/workbench/contracts';
 import { type TimelineEntry } from './panels';
 import {
   type Command,
@@ -90,7 +91,7 @@ export function useVoiceWorkbench() {
         const raw = await session.room.localParticipant.performRpc({
           destinationIdentity: identity!,
           method: 'voice.usecase_config',
-          payload: '{}',
+          payload: encodeRpcRequest('voice.usecase_config', {}),
           responseTimeout: 5000,
         });
         const config = parseUseCaseConfig(raw);
@@ -126,7 +127,7 @@ export function useVoiceWorkbench() {
       topic?: string
     ) => {
       if (
-        topic !== 'voice.workbench.v1' ||
+        topic !== WORKBENCH_TOPIC ||
         !identity ||
         participant?.identity !== identity ||
         data.byteLength > 16384
@@ -173,12 +174,11 @@ export function useVoiceWorkbench() {
       const raw = await session.room.localParticipant.performRpc({
         destinationIdentity: identity,
         method: 'voice.tools_state',
-        payload: '{}',
+        payload: encodeRpcRequest('voice.tools_state', {}),
         responseTimeout: 5000,
       });
-      if (raw.length > 16384) return;
-      const list = JSON.parse(raw);
-      if (!Array.isArray(list) || list.length > 32) return;
+      const list = parseRpcResponse('voice.tools_state', raw);
+      if (!list) return;
       const current: ToolActivity[] = [];
       for (const item of list) {
         const event = parseWorkerEvent(JSON.stringify(item));
@@ -195,12 +195,17 @@ export function useVoiceWorkbench() {
   async function confirmTool(confirmationId: string, approved: boolean) {
     if (!identity || session.connectionState !== 'connected')
       throw new Error('Reconnect before answering this confirmation.');
-    await session.room.localParticipant.performRpc({
+    const raw = await session.room.localParticipant.performRpc({
       destinationIdentity: identity,
       method: 'voice.confirm_tool',
-      payload: JSON.stringify({ confirmation_id: confirmationId, approved }),
+      payload: encodeRpcRequest('voice.confirm_tool', {
+        confirmation_id: confirmationId,
+        approved,
+      }),
       responseTimeout: 5000,
     });
+    if (!parseRpcResponse('voice.confirm_tool', raw))
+      throw new Error('The worker returned an invalid confirmation response.');
     await refreshTools();
   }
   async function start(textOnly = false) {
@@ -254,12 +259,14 @@ export function useVoiceWorkbench() {
     commandLock.current = true;
     dispatch({ type: 'command', command: 'interrupting' });
     try {
-      await session.room.localParticipant.performRpc({
+      const raw = await session.room.localParticipant.performRpc({
         destinationIdentity: identity,
         method: 'voice.interrupt',
-        payload: '{}',
+        payload: encodeRpcRequest('voice.interrupt', {}),
         responseTimeout: 5000,
       });
+      if (!parseRpcResponse('voice.interrupt', raw))
+        throw new Error('Invalid interruption response.');
       dispatch({ type: 'interrupted' });
       dispatch({ type: 'command', command: 'idle' });
     } catch {

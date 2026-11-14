@@ -20,6 +20,7 @@ from app.mcp.config import BACKEND_ROOT, MCPConfig, ServerConfig, load_config
 from app.mcp.connection_manager import ConnectionManager
 from app.mcp.registry import MCPRegistry, tool_name
 from app.tools.base import ToolFailure
+from app.usecases.registry import registry as usecases
 
 
 def clock_config():
@@ -35,8 +36,9 @@ def prepared_registry(config):
     names = frozenset(tool_name(config.id, alias) for alias in config.approved_tools)
     registry = MCPRegistry(MCPConfig(servers=[config]), names)
     orchestrator = Orchestrator(
-        SimpleNamespace(tool_allowlist=tuple(names)),
-        additional_tools=tuple(registry.definitions.values()),
+        use_case=usecases.get(),
+        tool_definitions=tuple(registry.definitions.values()),
+        allowlist=names,
         deferred_tools=names,
     )
     orchestrator.state.actor_id = "human"

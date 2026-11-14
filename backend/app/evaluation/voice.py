@@ -3,11 +3,13 @@
 import asyncio
 import time
 import wave
+from dataclasses import replace
 
 from livekit import rtc
 from livekit.agents.voice import io
 
-from app.agents.orchestrator import MainAgent, Orchestrator
+from app.agents.orchestrator import MainAgent
+from app.bootstrap import build_orchestrator
 from app.observability.session import SessionObserver
 from app.providers.pipeline import create_session
 
@@ -97,9 +99,9 @@ class Capture:
 
 async def run_voice(settings, filename, timeout=120):
     session = create_session(settings)
-    orchestrator = Orchestrator(
-        settings
-    )  # No MCP, infrastructure or side effects in eval.
+    # Preserve roomless evaluation's no-MCP boundary even if operator settings
+    # enable MCP. The runner supplies the safe builtin allowlist as before.
+    orchestrator = build_orchestrator(replace(settings, mcp_enabled=False))
     orchestrator.state.actor_id = "evaluation-user"
     capture = Capture(orchestrator.state.conversation_id)
     observer = SessionObserver(session, orchestrator, capture)
