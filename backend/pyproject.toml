@@ -1,0 +1,27 @@
+[project]
+name = "voice-starter-backend"
+version = "0.1.0"
+description = "LiveKit cascaded voice agent for Voice-Starter"
+requires-python = ">=3.13,<3.14"
+dependencies = [
+    "livekit-agents[deepgram,openai,cartesia,silero]~=1.8",
+    "python-dotenv>=1.0,<2",
+]
+
+[dependency-groups]
+dev = ["pytest>=8,<10", "ruff>=0.11,<1"]
+
+[tool.uv]
+package = false
+constraint-dependencies = ["yarl<1.24"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[tool.ruff]
+target-version = "py313"
+line-length = 88
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
