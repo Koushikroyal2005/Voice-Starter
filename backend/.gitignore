@@ -9,3 +9,5 @@ __pycache__/
 .ruff_cache/
 mcp.servers.json
 mcp.*.local.json
+evaluation.local/
+*.eval.local.json

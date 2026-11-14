@@ -3,6 +3,7 @@
 import asyncio
 import json
 import logging
+import time
 
 from livekit import rtc
 from livekit.agents import AgentSession, JobContext
@@ -128,6 +129,7 @@ async def install_workbench(
     @ctx.room.local_participant.register_rpc_method("voice.interrupt")
     async def interrupt(data: rtc.RpcInvocationData) -> str:
         linked_caller(data)
+        started = time.monotonic()
         if orchestrator:
             await orchestrator.executor.cancel_safe()
             if orchestrator.executor.running_writes:
@@ -136,7 +138,17 @@ async def install_workbench(
                     "A non-cancellable action is in progress; check its outcome",
                 )
         # SDK cancellation clears queued speech and truncates interrupted history.
-        await session.interrupt(force=True)
+        try:
+            async with asyncio.timeout(5):
+                await session.interrupt(force=True)
+        except TimeoutError:
+            raise rtc.RpcError(
+                2004, "Interruption timed out; reconnect the session"
+            ) from None
+        if orchestrator and orchestrator.telemetry:
+            orchestrator.telemetry.event(
+                "interruption_rpc", duration=time.monotonic() - started
+            )
         return '{"interrupted":true}'
 
     @session.on("conversation_item_added")

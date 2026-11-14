@@ -11,12 +11,16 @@ dependencies = [
     "alembic>=1.16,<2",
     "asyncpg>=0.30,<1",
     "redis>=6,<8",
+    "opentelemetry-api>=1.39,<2",
+    "opentelemetry-sdk>=1.39,<2",
+    "opentelemetry-exporter-otlp-proto-http>=1.39,<2",
 ]
 
 [dependency-groups]
 dev = ["pytest>=8,<10", "ruff>=0.11,<1", "aiosqlite>=0.21,<1"]
 
 [project.optional-dependencies]
+telemetry = ["prometheus-client>=0.22,<1", "sentry-sdk>=2,<3"]
 mcp = ["livekit-agents[mcp]==1.8.12", "mcp>=2.3,<3", "jsonschema>=4.23,<5"]
 
 [tool.uv]

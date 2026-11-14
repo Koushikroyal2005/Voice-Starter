@@ -30,6 +30,7 @@ def test_session_closes_job_and_uses_client_disconnect_cleanup(monkeypatch):
     monkeypatch.setattr(main, "build_orchestrator", Mock())
     monkeypatch.setattr(main, "MainAgent", Mock())
     monkeypatch.setattr(main, "install_workbench", AsyncMock())
+    monkeypatch.setattr(main, "install_observability", Mock())
     asyncio.run(main.voice_session(ctx))
     assert session.start.call_args.kwargs["room"] is ctx.room
     assert session.start.call_args.kwargs["room_options"].close_on_disconnect is True

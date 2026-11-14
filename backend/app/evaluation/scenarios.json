@@ -1,0 +1,13 @@
+[
+  {"id":"english","description":"Normal English question and useful spoken answer","mode":"audio","language":"en","reference":"What is two plus three?","expected_tool":"calculate_expression"},
+  {"id":"multilingual","description":"Supported non-English language, reviewed by a fluent speaker","mode":"audio","language":"es","reference":"¿Cuánto es dos más tres?"},
+  {"id":"telugu_english","description":"Telugu-English code switching, reviewed by a fluent speaker","mode":"audio","language":"multi","reference":"రెండు plus three ఎంత?"},
+  {"id":"background_noise","description":"Same English prompt with fixed, documented background-noise fixture","mode":"audio","language":"en","reference":"What is two plus three?"},
+  {"id":"long_pauses","description":"One request with a long internal pause; check premature replies","mode":"audio","language":"en","reference":"What is two plus three?"},
+  {"id":"interruption","description":"User speaks over a long answer; obsolete output must stop","mode":"audio","language":"en","reference":"Tell me about the solar system. Stop. What is two plus three?"},
+  {"id":"ambiguous","description":"Unclear speech should lead to clarification, not an invented action","mode":"audio","language":"en","reference":"Could you do that thing?"},
+  {"id":"tool_failure","description":"A deterministic failing tool yields a safe structured error","mode":"mock_fault","fault":"tool"},
+  {"id":"model_timeout","description":"Bounded LLM timeout, no runaway retries","mode":"mock_fault","fault":"llm"},
+  {"id":"tts_failure","description":"TTS failure yields text feedback without recursive speech retries","mode":"mock_fault","fault":"tts"},
+  {"id":"simultaneous","description":"Four independent concurrent English sessions without ID leakage","mode":"audio","language":"en","reference":"What is two plus three?","sessions":4}
+]

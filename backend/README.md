@@ -220,3 +220,6 @@ parallel provider SDK or replacing LiveKit's event and transport abstractions.
 
 See [PostgreSQL, migrations, Redis and Windows setup](../docs/persistence.md).
 Persistence and transcripts default off; Redis is independently optional.
+
+See [observability](../docs/observability.md) and [voice evaluation](../docs/voice-evaluation.md)
+for metadata-only tracing, reliability controls, readiness and opt-in scenario tests.

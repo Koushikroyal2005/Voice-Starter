@@ -75,6 +75,7 @@ export function mergeToolActivities(
   return [...previous.filter((t) => t.id !== next.id), next].slice(-30);
 }
 export type WorkerEvent =
+  | { type: 'error'; message: string }
   | { type: 'interrupted' }
   | { type: 'tool'; tool: ToolActivity }
   | { type: 'result'; result: VoiceResult };
@@ -85,6 +86,18 @@ export function parseWorkerEvent(raw: string): WorkerEvent | null {
     const v = JSON.parse(raw);
     if (!v || typeof v !== 'object') return null;
     if (v.type === 'interrupted') return { type: 'interrupted' };
+    if (v.type === 'error' && v.code === 'provider_unavailable')
+      return {
+        type: 'error',
+        message:
+          'A voice service is unavailable. Try again shortly, or reconnect if the session has ended.',
+      };
+    if (v.type === 'error' && v.code === 'transcription_timeout')
+      return {
+        type: 'error',
+        message:
+          'No speech transcript was received. Check your microphone, try again, or use text input.',
+      };
     if (
       v.type === 'tool' &&
       typeof v.id === 'string' &&

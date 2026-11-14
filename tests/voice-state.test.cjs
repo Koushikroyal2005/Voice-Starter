@@ -15,6 +15,17 @@ vm.runInNewContext(
 );
 const { deriveVoiceState, parseWorkerEvent, mediaErrorMessage, mergeToolActivities } =
   exportsObject;
+test('worker failures show safe feedback and reject arbitrary error messages', () => {
+  const event = parseWorkerEvent(
+    JSON.stringify({ type: 'error', code: 'provider_unavailable', message: 'private-secret' })
+  );
+  assert.equal(event.type, 'error');
+  assert.ok(!event.message.includes('private-secret'));
+  assert.equal(
+    parseWorkerEvent(JSON.stringify({ type: 'error', code: 'unknown', message: 'private-secret' })),
+    null
+  );
+});
 test('connected but idle agent is not mislabelled as still connecting', () =>
   assert.equal(deriveVoiceState(snapshot({ agent: 'idle' })), 'idle'));
 const snapshot = (overrides = {}) => ({

@@ -40,6 +40,7 @@ class Orchestrator:
         self.event_sink = lambda event: None
         self.event_listeners = []
         self.close_infrastructure = None
+        self.telemetry = None
         self.executor = ToolExecutor(
             self.registry, self.state, self.allowlist, self.emit
         )

@@ -8,6 +8,7 @@ from livekit.agents import AgentServer, JobContext, cli, room_io
 from app.agents.orchestrator import MainAgent
 from app.bootstrap import build_orchestrator
 from app.config.settings import ConfigurationError, load_settings
+from app.observability.session import install_observability
 from app.providers.pipeline import create_session
 from app.providers.registry import ProviderError
 from app.services.infrastructure import install_infrastructure
@@ -18,9 +19,10 @@ logger = logging.getLogger("voice-starter")
 
 async def voice_session(ctx: JobContext) -> None:
     config = load_settings()
-    logger.info("Voice job received")
     session = create_session(config)
     orchestrator = build_orchestrator(config)
+    install_observability(ctx, session, orchestrator, config)
+    logger.info("Voice job received")
 
     @session.on("close")
     def on_session_close(_event):
@@ -32,6 +34,7 @@ async def voice_session(ctx: JobContext) -> None:
         agent=agent,
         room=ctx.room,
         room_options=room_io.RoomOptions(close_on_disconnect=True),
+        record=False,  # No implicit cloud audio/transcript recording for telemetry.
     )
     await ctx.connect()
     await install_infrastructure(ctx, session, orchestrator, config)

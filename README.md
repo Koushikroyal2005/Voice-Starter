@@ -199,3 +199,8 @@ policies, private configuration and adding external hackathon integrations.
 See [persistence setup and security boundaries](docs/persistence.md) for PostgreSQL,
 Alembic, opt-in transcripts and optional Redis. No infrastructure service is required
 for the default voice-only setup.
+
+See [observability and reliability](docs/observability.md) for correlation IDs,
+stage timings, optional OTLP/Sentry/Prometheus, and debugging slow interactions.
+[Voice evaluation](docs/voice-evaluation.md) separates deterministic fault tests from
+opt-in real-provider audio scenarios and measured results from targets.

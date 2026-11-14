@@ -10,6 +10,7 @@ from dotenv import load_dotenv
 
 from app.agents.instructions import DEFAULT_INSTRUCTIONS
 from app.config.infrastructure import InfrastructureSettings
+from app.observability.config import ObservabilitySettings
 from app.providers.registry import Category, ProviderError, registry
 
 ENV_FILE = Path(__file__).resolve().parents[2] / ".env"
@@ -72,6 +73,8 @@ class Settings:
     allow_batch_stt: bool = False
     require_interim: bool = False
     turn_detection: str = "vad"
+    observability: ObservabilitySettings = field(default_factory=ObservabilitySettings)
+    fallbacks: tuple[ProviderConfig, ...] = ()
     infrastructure: InfrastructureSettings = field(
         default_factory=InfrastructureSettings
     )
@@ -172,9 +175,12 @@ class Settings:
             )
         try:
             infrastructure = InfrastructureSettings.from_env(values)
+            observability = ObservabilitySettings.from_env(values)
         except ValueError as error:
             raise ConfigurationError(str(error)) from None
         return cls(
+            observability=observability,
+            fallbacks=cls.parse_fallbacks(values, configs),
             infrastructure=infrastructure,
             livekit_url=optional("LIVEKIT_URL"),
             livekit_api_key=optional("LIVEKIT_API_KEY"),
@@ -198,6 +204,39 @@ class Settings:
                 if name.strip()
             ),
         )
+
+    @classmethod
+    def parse_fallbacks(cls, values, configs):
+        fallbacks = []
+        clean = {k: v for k, v in values.items() if "_FALLBACK_" not in k}
+        for category in ("stt", "llm", "tts"):
+            prefix = category.upper()
+            name = values.get(f"{prefix}_FALLBACK_PROVIDER", "").strip()
+            if not name:
+                continue
+            spec = registry.get(category, name)
+            key = values.get(f"{prefix}_FALLBACK_API_KEY", "").strip()
+            if not key:
+                raise ConfigurationError(f"{prefix}_FALLBACK_API_KEY is required")
+            if values.get(f"{prefix}_FALLBACK_COMPATIBLE", "false") != "true":
+                raise ConfigurationError(
+                    f"{prefix}_FALLBACK_COMPATIBLE=true requires operator verification "
+                    "of language, model, tools, consent and data residency"
+                )
+            overlay = dict(clean)
+            for field_name in ("MODEL", "BASE_URL", "VOICE", "LANGUAGE"):
+                overlay[f"{prefix}_{field_name}"] = values.get(
+                    f"{prefix}_FALLBACK_{field_name}", ""
+                )
+            overlay[f"{prefix}_PROVIDER"] = name
+            overlay[spec.api_key_env] = key
+            fallback = getattr(cls.from_env(overlay), category)
+            if fallback.language != configs[category].language:
+                raise ConfigurationError("Fallback language must match primary")
+            if not spec.capabilities.streaming:
+                raise ConfigurationError("Batch providers cannot be realtime fallbacks")
+            fallbacks.append(fallback)
+        return tuple(fallbacks)
 
 
 def load_settings() -> Settings:

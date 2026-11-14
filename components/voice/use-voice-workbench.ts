@@ -24,6 +24,7 @@ type Action =
   | { type: 'error'; message: string }
   | { type: 'interrupted' }
   | { type: 'progress' }
+  | { type: 'recovered' }
   | { type: 'reset' };
 function reducer(state: ControlState, action: Action): ControlState {
   switch (action.type) {
@@ -35,6 +36,8 @@ function reducer(state: ControlState, action: Action): ControlState {
       return { ...state, interrupted: true };
     case 'progress':
       return { ...state, interrupted: false };
+    case 'recovered':
+      return { ...state, error: null };
     case 'reset':
       return { command: 'idle', error: null, interrupted: false };
   }
@@ -67,6 +70,7 @@ export function useVoiceWorkbench() {
   );
   useEffect(() => {
     dispatch({ type: 'progress' });
+    if (agent.state === 'speaking') dispatch({ type: 'recovered' });
   }, [agent.state]);
   useEffect(() => {
     setEntries((previous) =>
@@ -88,6 +92,7 @@ export function useVoiceWorkbench() {
       )
         return;
       const event = parseWorkerEvent(new TextDecoder().decode(data));
+      if (event?.type === 'error') dispatch({ type: 'error', message: event.message });
       if (event?.type === 'interrupted') dispatch({ type: 'interrupted' });
       if (event?.type === 'tool') setTools((old) => mergeToolActivities(old, event.tool));
       if (event?.type === 'result')
