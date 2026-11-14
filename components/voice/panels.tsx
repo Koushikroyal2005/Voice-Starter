@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { Fragment, type ReactNode, useState } from 'react';
 import {
   type AgentState as LiveKitAgentState,
   type ReceivedMessage,
@@ -177,11 +177,13 @@ export function ConversationTimeline({
   tools,
   results,
   onConfirm,
+  renderResult,
 }: {
   entries: TimelineEntry[];
   tools: ToolActivity[];
   results: VoiceResult[];
   onConfirm?: (id: string, approved: boolean) => Promise<void>;
+  renderResult?: (result: VoiceResult) => ReactNode;
 }) {
   return (
     <section aria-label="Conversation timeline" className="bg-card rounded-2xl border p-5">
@@ -204,7 +206,7 @@ export function ConversationTimeline({
           <ToolActivityCard key={t.id + (t.confirmationId || '')} tool={t} onConfirm={onConfirm} />
         ))}
         {results.map((r) => (
-          <ResultCard key={r.id} result={r} />
+          <Fragment key={r.id}>{renderResult?.(r) ?? <ResultCard result={r} />}</Fragment>
         ))}
       </div>
       {!tools.length && !results.length && (

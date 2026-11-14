@@ -62,6 +62,11 @@ async def install_workbench(
     if orchestrator:
         orchestrator.event_sink = emit
 
+        @ctx.room.local_participant.register_rpc_method("voice.usecase_config")
+        async def usecase_config(data: rtc.RpcInvocationData) -> str:
+            linked_caller(data)
+            return orchestrator.public_use_case.model_dump_json()
+
         @ctx.room.local_participant.register_rpc_method("voice.confirm_tool")
         async def confirm_tool(data: rtc.RpcInvocationData) -> str:
             actor = linked_caller(data)
@@ -200,6 +205,7 @@ async def install_workbench(
         if orchestrator:
             ctx.room.local_participant.unregister_rpc_method("voice.confirm_tool")
             ctx.room.local_participant.unregister_rpc_method("voice.tools_state")
+            ctx.room.local_participant.unregister_rpc_method("voice.usecase_config")
             await orchestrator.executor.close()
             if orchestrator.external_tools:
                 await orchestrator.external_tools.aclose()
@@ -211,4 +217,7 @@ async def install_workbench(
             await asyncio.gather(*tasks, return_exceptions=True)
 
     ctx.add_shutdown_callback(cleanup)
-    await ctx.room.local_participant.set_attributes({"voice.language": language})
+    attributes = {"voice.language": language}
+    if orchestrator:
+        attributes["voice.usecase"] = orchestrator.public_use_case.id
+    await ctx.room.local_participant.set_attributes(attributes)

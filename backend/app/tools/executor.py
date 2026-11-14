@@ -36,6 +36,7 @@ class ToolExecutor:
         self.confirmations = ConfirmationManager(emit)
         self.running_writes: set[str] = set()
         self.rate_limit_check = None
+        self.public_card_types = frozenset({"text"})
 
     def event(
         self,
@@ -229,16 +230,28 @@ class ToolExecutor:
                     await tool.handler(args, context)
                 )
             data = output.model_dump(mode="json")
-            self.event(call_id, tool, "completed")
+            public_event = None
             if tool.public_result:
-                self.emit(
-                    {
+                try:
+                    public_event = {
                         "type": "result",
                         "id": call_id,
                         "title": tool.title,
                         "text": tool.public_result(output)[:4000],
                     }
-                )
+                    if tool.public_card:
+                        card = tool.public_card(output)
+                        if card.card_type not in self.public_card_types:
+                            raise ValueError("Unapproved public card type")
+                        public_event.update(card.model_dump(mode="json"))
+                    if len(json.dumps(public_event, allow_nan=False).encode()) > 12000:
+                        raise ValueError("Public result is too large")
+                except Exception:
+                    public_event = None
+                    logger.warning("Tool public result unavailable")
+            self.event(call_id, tool, "completed")
+            if public_event:
+                self.emit(public_event)
             return ToolResult(
                 call_id=call_id,
                 tool=tool.name,

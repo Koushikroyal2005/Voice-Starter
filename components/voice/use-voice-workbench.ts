@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 import { DisconnectReason, type RemoteParticipant, RoomEvent } from 'livekit-client';
 import { useAgent, useSessionContext, useSessionMessages } from '@livekit/components-react';
+import { DEFAULT_USE_CASE, parseUseCaseConfig } from '@/lib/usecase-config';
 import { type TimelineEntry } from './panels';
 import {
   type Command,
@@ -56,6 +57,7 @@ export function useVoiceWorkbench() {
   const [tools, setTools] = useState<ToolActivity[]>([]);
   const [results, setResults] = useState<VoiceResult[]>([]);
   const [entries, setEntries] = useState<TimelineEntry[]>([]);
+  const [useCase, setUseCase] = useState(DEFAULT_USE_CASE);
   const state = deriveVoiceState({
     connection: session.connectionState,
     agent: agent.state,
@@ -64,6 +66,45 @@ export function useVoiceWorkbench() {
     awaitingConfirmation: tools.some((t) => t.status === 'confirmation_required'),
   });
   const identity = agent.isConnected ? agent.identity : undefined;
+  const useCaseId = agent.attributes['voice.usecase'];
+  useEffect(() => {
+    let cancelled = false;
+    if (!identity || session.connectionState !== 'connected' || !useCaseId) {
+      setUseCase(DEFAULT_USE_CASE);
+      return;
+    }
+    setUseCase({
+      ...DEFAULT_USE_CASE,
+      notice: 'Loading application details from the connected worker.',
+    });
+    const unavailable = () => {
+      if (!cancelled)
+        setUseCase({
+          ...DEFAULT_USE_CASE,
+          notice:
+            'Application details could not be verified. Check the worker configuration before using specialized features.',
+        });
+    };
+    async function load() {
+      try {
+        const raw = await session.room.localParticipant.performRpc({
+          destinationIdentity: identity!,
+          method: 'voice.usecase_config',
+          payload: '{}',
+          responseTimeout: 5000,
+        });
+        const config = parseUseCaseConfig(raw);
+        if (!cancelled && config?.id === useCaseId) setUseCase(config);
+        else if (!cancelled) unavailable();
+      } catch {
+        unavailable();
+      }
+    }
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [identity, useCaseId, session.connectionState, session.room]);
   const reportError = useCallback(
     (error: unknown) => dispatch({ type: 'error', message: mediaErrorMessage(error) }),
     []
@@ -240,6 +281,7 @@ export function useVoiceWorkbench() {
     tools,
     results,
     entries,
+    useCase,
     start,
     cancelStart,
     end,

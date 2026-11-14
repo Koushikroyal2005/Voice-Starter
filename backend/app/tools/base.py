@@ -4,7 +4,7 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class Schema(BaseModel):
@@ -18,6 +18,11 @@ class ToolResult(Schema):
     message: str
     data: dict[str, Any] | None = None
     code: str | None = None
+
+
+class PublicCard(Schema):
+    card_type: str = Field(pattern=r"^[a-z][a-z0-9_]{0,47}$")
+    data: dict[str, Any]
 
 
 class ToolFailure(Exception):
@@ -55,6 +60,7 @@ class ToolDefinition:
     # Must be an explicit safe summary: do not serialize arbitrary sensitive input.
     confirmation_summary: Callable[[Any], str] | None = None
     public_result: Callable[[Any], str] | None = None
+    public_card: Callable[[Any], PublicCard] | None = None
 
     def __post_init__(self):
         if not 0 < self.timeout_seconds <= 120:

@@ -204,3 +204,7 @@ See [observability and reliability](docs/observability.md) for correlation IDs,
 stage timings, optional OTLP/Sentry/Prometheus, and debugging slow interactions.
 [Voice evaluation](docs/voice-evaluation.md) separates deterministic fault tests from
 opt-in real-provider audio scenarios and measured results from targets.
+
+See [creating a new use case](docs/creating-a-new-usecase.md) for isolated prompts,
+tools, services, policies and custom cards. Set backend `USE_CASE=education` to try
+Study Companion, or leave it unset for the general assistant.

@@ -56,6 +56,8 @@ export interface VoiceResult {
   id: string;
   title: string;
   text: string;
+  cardType?: string;
+  data?: Record<string, unknown>;
 }
 export function mergeToolActivities(
   previous: ToolActivity[],
@@ -141,7 +143,19 @@ export function parseWorkerEvent(raw: string): WorkerEvent | null {
       typeof v.text === 'string' &&
       v.title.length <= 200
     )
-      return { type: 'result', result: { id: v.id.slice(0, 200), title: v.title, text: v.text } };
+      return {
+        type: 'result',
+        result: {
+          id: v.id.slice(0, 200),
+          title: v.title,
+          text: v.text,
+          cardType:
+            typeof v.card_type === 'string' && /^[a-z][a-z0-9_]{0,47}$/.test(v.card_type)
+              ? v.card_type
+              : undefined,
+          data: v.data && typeof v.data === 'object' && !Array.isArray(v.data) ? v.data : undefined,
+        },
+      };
   } catch {
     /* Ignore invalid or unrelated room data. */
   }

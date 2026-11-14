@@ -70,6 +70,42 @@ def test_interrupt_authentication_and_real_sdk_cancellation():
     asyncio.run(run())
 
 
+def test_public_usecase_rpc_requires_linked_caller_and_has_no_private_fields():
+    from app.bootstrap import build_orchestrator
+    from app.config.settings import Settings
+
+    async def run():
+        settings = Settings.from_env(
+            {
+                "LIVEKIT_URL": "wss://example.test",
+                "LIVEKIT_API_KEY": "key",
+                "LIVEKIT_API_SECRET": "never-public",
+                "DEEPGRAM_API_KEY": "key",
+                "LLM_API_KEY": "secret-llm",
+                "CARTESIA_API_KEY": "key",
+                "USE_CASE": "education",
+            }
+        )
+        orchestrator = build_orchestrator(settings)
+        ctx, session, handlers, _ = bridge()
+        await install_workbench(ctx, session, "en", orchestrator)
+        handler = handlers["voice.usecase_config"]
+        with pytest.raises(rtc.RpcError):
+            await handler(SimpleNamespace(caller_identity="other"))
+        raw = await handler(SimpleNamespace(caller_identity="user"))
+        assert json.loads(raw)["name"] == "Study Companion"
+        assert "never-public" not in raw and "secret-llm" not in raw
+        assert "instructions" not in json.loads(raw)
+        assert "provider" not in json.loads(raw)
+        assert (
+            ctx.room.local_participant.set_attributes.call_args.args[0]["voice.usecase"]
+            == "education"
+        )
+        await ctx.add_shutdown_callback.call_args.args[0]()
+
+    asyncio.run(run())
+
+
 def test_real_tool_events_are_sanitized_and_targeted():
     async def run():
         ctx, session, _, events = bridge()

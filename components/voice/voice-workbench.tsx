@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { type ReactNode, useState } from 'react';
 import { AudioLines } from 'lucide-react';
 import { ThemeToggle } from '@/components/app/theme-toggle';
+import { type PublicUseCase } from '@/lib/usecase-config';
 import { AudioVisualizer, type VisualizerType, visualizerTypes } from './audio-visualizer';
 import {
   AgentStatus,
@@ -11,10 +12,15 @@ import {
   LanguageSelector,
   LiveTranscript,
 } from './panels';
+import { type VoiceResult } from './state';
 import { useVoiceWorkbench } from './use-voice-workbench';
 import { VoiceControls } from './voice-controls';
 
-export function VoiceWorkbench() {
+export function VoiceWorkbench({
+  renderResult,
+}: {
+  renderResult?: (result: VoiceResult, config: PublicUseCase) => ReactNode;
+}) {
   const voice = useVoiceWorkbench();
   const [visualizer, setVisualizer] = useState<VisualizerType>('bar');
   return (
@@ -25,8 +31,8 @@ export function VoiceWorkbench() {
             <AudioLines aria-hidden className="size-5" />
           </span>
           <div>
-            <h1 className="text-lg font-semibold tracking-tight">Voice Workbench</h1>
-            <p className="text-muted-foreground text-xs">A foundation for real conversations</p>
+            <h1 className="text-lg font-semibold tracking-tight">{voice.useCase.name}</h1>
+            <p className="text-muted-foreground text-xs">{voice.useCase.description}</p>
           </div>
         </div>
         <div className="flex items-center gap-4">
@@ -41,8 +47,16 @@ export function VoiceWorkbench() {
           </p>
           <h2 className="mt-2 text-2xl font-semibold tracking-tight">Let’s talk.</h2>
         </div>
-        <LanguageSelector value={voice.agent.attributes['voice.language'] || 'Worker default'} />
+        <LanguageSelector
+          value={voice.agent.attributes['voice.language'] || 'Worker default'}
+          languages={voice.useCase.languages}
+        />
       </div>
+      {voice.useCase.notice && (
+        <p role="note" className="text-muted-foreground mb-5 rounded-xl border p-4 text-sm">
+          {voice.useCase.notice}
+        </p>
+      )}
       {voice.control.error || voice.agent.state === 'failed' ? (
         <div
           role="alert"
@@ -108,6 +122,7 @@ export function VoiceWorkbench() {
           tools={voice.tools}
           results={voice.results}
           onConfirm={voice.confirmTool}
+          renderResult={renderResult ? (result) => renderResult(result, voice.useCase) : undefined}
         />
       </div>
       <footer className="text-muted-foreground mt-6 flex flex-wrap justify-between gap-2 text-xs">

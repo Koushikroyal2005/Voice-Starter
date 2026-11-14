@@ -223,3 +223,6 @@ Persistence and transcripts default off; Redis is independently optional.
 
 See [observability](../docs/observability.md) and [voice evaluation](../docs/voice-evaluation.md)
 for metadata-only tracing, reliability controls, readiness and opt-in scenario tests.
+
+See [creating a new use case](../docs/creating-a-new-usecase.md) for the module contract,
+education tool/service/card example, configuration precedence and public UI boundary.

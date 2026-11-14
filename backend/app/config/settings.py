@@ -70,6 +70,7 @@ class Settings:
     tts: ProviderConfig
     agent_name: str = ""
     instructions: str = DEFAULT_INSTRUCTIONS
+    use_case: str = "general_assistant"
     allow_batch_stt: bool = False
     require_interim: bool = False
     turn_detection: str = "vad"
@@ -88,7 +89,14 @@ class Settings:
 
     @classmethod
     def from_env(cls, env: Mapping[str, str] | None = None) -> "Settings":
-        values = os.environ if env is None else env
+        from app.usecases.registry import registry as usecases
+
+        supplied = os.environ if env is None else env
+        try:
+            use_case = usecases.get(supplied.get("USE_CASE", "").strip())
+        except ValueError as error:
+            raise ConfigurationError(str(error)) from None
+        values = {**use_case.provider_defaults, **supplied}
 
         def optional(key: str, default: str = "") -> str:
             return values.get(key, "").strip() or default
@@ -178,9 +186,26 @@ class Settings:
             observability = ObservabilitySettings.from_env(values)
         except ValueError as error:
             raise ConfigurationError(str(error)) from None
+        tools = tuple(
+            name.strip()
+            for name in values.get(
+                "TOOL_ALLOWLIST", ",".join(use_case.default_tools)
+            ).split(",")
+            if name.strip()
+        )
+        fallbacks = cls.parse_fallbacks(values, configs)
+        try:
+            use_case.validate_selection(configs, tools, infrastructure)
+            for fallback in fallbacks:
+                use_case.validate_selection(
+                    {fallback.category: fallback}, tools, infrastructure
+                )
+        except ValueError as error:
+            raise ConfigurationError(str(error)) from None
         return cls(
+            use_case=use_case.id,
             observability=observability,
-            fallbacks=cls.parse_fallbacks(values, configs),
+            fallbacks=fallbacks,
             infrastructure=infrastructure,
             livekit_url=optional("LIVEKIT_URL"),
             livekit_api_key=optional("LIVEKIT_API_KEY"),
@@ -189,20 +214,15 @@ class Settings:
             llm=configs["llm"],
             tts=configs["tts"],
             agent_name=optional("AGENT_NAME"),
-            instructions=optional("AGENT_INSTRUCTIONS", DEFAULT_INSTRUCTIONS),
+            instructions=optional("AGENT_INSTRUCTIONS", use_case.instructions),
             allow_batch_stt=allow_batch,
             require_interim=require_interim,
             turn_detection=turn_detection,
             mcp_enabled=boolean(values, "MCP_ENABLED"),
-            mcp_config_file=optional("MCP_CONFIG_FILE", "mcp.servers.json"),
-            tool_allowlist=tuple(
-                name.strip()
-                for name in values.get(
-                    "TOOL_ALLOWLIST",
-                    "get_current_time,calculate_expression,time_and_calculate",
-                ).split(",")
-                if name.strip()
+            mcp_config_file=optional(
+                "MCP_CONFIG_FILE", use_case.mcp_config_file or "mcp.servers.json"
             ),
+            tool_allowlist=tools,
         )
 
     @classmethod
