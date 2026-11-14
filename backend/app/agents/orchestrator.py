@@ -19,7 +19,10 @@ from app.workflows.time_calculation import WORKFLOW_TOOL
 
 class Orchestrator:
     def __init__(
-        self, settings: Settings, additional_tools: tuple[ToolDefinition, ...] = ()
+        self,
+        settings: Settings,
+        additional_tools: tuple[ToolDefinition, ...] = (),
+        deferred_tools: frozenset[str] = frozenset(),
     ):
         self.state = ConversationState(str(uuid4()))
         self.registry = ToolRegistry()
@@ -28,6 +31,10 @@ class Orchestrator:
         self.allowlist = frozenset(settings.tool_allowlist)
         self.configured_allowlist = self.allowlist
         self.registry.selected(self.allowlist)  # Fail closed for unknown configuration.
+        self.allowlist = self.allowlist - deferred_tools
+        self.availability_lock = asyncio.Lock()
+        self.availability_dirty = False
+        self.external_tools = None
         self.activities: dict[str, dict] = {}
         self.revision = 0
         self.event_sink = lambda event: None
@@ -118,6 +125,30 @@ class Orchestrator:
         self.allowlist = self.allowlist - {name}
         self.executor.allowlist = self.allowlist
         await agent.update_tools(self.tools())
+
+    async def set_tool_availability(
+        self, agent: Agent, scope: set[str], available: set[str]
+    ):
+        async with self.availability_lock:
+            approved = (
+                frozenset(available) & frozenset(scope) & self.configured_allowlist
+            )
+            self.registry.selected(approved)
+            previous = self.allowlist
+            selected = (previous - scope) | approved
+            if selected == previous and not self.availability_dirty:
+                return
+            self.allowlist = selected
+            self.executor.allowlist = self.allowlist
+            try:
+                await agent.update_tools(self.tools())
+                self.availability_dirty = False
+            except Exception:
+                # Revocations remain effective even if the provider update failed.
+                self.allowlist = previous & selected
+                self.executor.allowlist = self.allowlist
+                self.availability_dirty = True
+                raise
 
 
 class MainAgent(Agent):

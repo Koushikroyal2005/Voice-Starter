@@ -1,0 +1,109 @@
+{
+  "servers": [
+    {
+      "id": "maps",
+      "enabled": false,
+      "transport": "streamable_http",
+      "url_env": "MAPS_MCP_URL",
+      "headers_env": { "Authorization": "MAPS_MCP_AUTHORIZATION" },
+      "approved_tools": {
+        "route": {
+          "remote_name": "get_route",
+          "title": "Find a route",
+          "description": "ILLUSTRATIVE CONTRACT ONLY: get a route from a reviewed maps MCP service.",
+          "input_schema": {
+            "type": "object",
+            "properties": {
+              "origin": { "type": "string", "maxLength": 200 },
+              "destination": { "type": "string", "maxLength": 200 }
+            },
+            "required": ["origin", "destination"],
+            "additionalProperties": false
+          },
+          "output_schema": {
+            "type": "object",
+            "properties": { "distance_km": { "type": "number", "minimum": 0, "maximum": 50000 } },
+            "required": ["distance_km"],
+            "additionalProperties": false
+          },
+          "llm_fields": ["distance_km"],
+          "permission": "maps:route",
+          "sensitive": false,
+          "side_effects": false,
+          "cancellation_safe": true
+        }
+      }
+    },
+    {
+      "id": "database",
+      "enabled": false,
+      "transport": "streamable_http",
+      "url_env": "DATABASE_MCP_URL",
+      "headers_env": { "Authorization": "DATABASE_MCP_AUTHORIZATION" },
+      "approved_tools": {
+        "lookup": {
+          "remote_name": "get_record_status",
+          "title": "Read an authorized record status",
+          "description": "ILLUSTRATIVE CONTRACT ONLY: scoped deterministic lookup, never generic SQL.",
+          "input_schema": {
+            "type": "object",
+            "properties": { "record_id": { "type": "string", "maxLength": 64 } },
+            "required": ["record_id"],
+            "additionalProperties": false
+          },
+          "output_schema": {
+            "type": "object",
+            "properties": { "status": { "type": "string", "enum": ["open", "closed"] } },
+            "required": ["status"],
+            "additionalProperties": false
+          },
+          "llm_fields": ["status"],
+          "permission": "records:read",
+          "sensitive": true,
+          "side_effects": false,
+          "cancellation_safe": true,
+          "confirmation_summary": "Read the status of this authorized record:",
+          "confirmation_fields": ["record_id"]
+        }
+      }
+    },
+    {
+      "id": "business",
+      "enabled": false,
+      "transport": "streamable_http",
+      "url_env": "BUSINESS_MCP_URL",
+      "headers_env": { "Authorization": "BUSINESS_MCP_AUTHORIZATION" },
+      "approved_tools": {
+        "request": {
+          "remote_name": "create_service_request",
+          "title": "Create a reviewed service request",
+          "description": "ILLUSTRATIVE CONTRACT ONLY: a deterministic business API with durable idempotency.",
+          "input_schema": {
+            "type": "object",
+            "properties": {
+              "customer_ref": { "type": "string", "maxLength": 64 },
+              "request_type": { "type": "string", "enum": ["callback"] },
+              "operation_id": { "type": "string", "maxLength": 128 }
+            },
+            "required": ["customer_ref", "request_type", "operation_id"],
+            "additionalProperties": false
+          },
+          "output_schema": {
+            "type": "object",
+            "properties": { "request_id": { "type": "string", "maxLength": 64 } },
+            "required": ["request_id"],
+            "additionalProperties": false
+          },
+          "llm_fields": [],
+          "permission": "requests:create",
+          "sensitive": true,
+          "side_effects": true,
+          "cancellation_safe": false,
+          "confirmation_summary": "Create one service request with these details:",
+          "confirmation_fields": ["customer_ref", "request_type"],
+          "idempotency_argument": "operation_id"
+        }
+      }
+    }
+  ]
+}

@@ -7,6 +7,10 @@ The existing Next.js frontend uses the worker's real tool events and confirmatio
 See [tool orchestration](../docs/tool-orchestration.md) for tool definitions, permissions,
 confirmation, idempotency, cancellation, workflows and the use-case extension guide.
 
+Optional MCP uses the official SDK and LiveKit integration; see [MCP setup](../docs/mcp.md).
+It is disabled by default and is not a speech or LLM provider. Install with
+`uv sync --locked --extra mcp --group dev` and use `uv run --extra mcp` when enabled.
+
 ## Windows setup
 
 From the repository root in PowerShell:

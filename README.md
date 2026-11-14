@@ -190,3 +190,6 @@ state/event model, real audio sources, interruption bridge and verification chec
 
 See [Tool orchestration](docs/tool-orchestration.md) for the single-agent tool engine,
 safe demo tools/workflow, permission/confirmation policies and use-case extension guide.
+
+See [Optional MCP tools](docs/mcp.md) for verified local stdio/HTTP demos, approved-tool
+policies, private configuration and adding external hackathon integrations.

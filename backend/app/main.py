@@ -26,13 +26,16 @@ async def voice_session(ctx: JobContext) -> None:
         logger.info("Voice session closed", extra={"room": ctx.room.name})
         ctx.shutdown(reason="voice_session_closed")
 
+    agent = MainAgent(config, orchestrator)
     await session.start(
-        agent=MainAgent(config, orchestrator),
+        agent=agent,
         room=ctx.room,
         room_options=room_io.RoomOptions(close_on_disconnect=True),
     )
     await ctx.connect()
     await install_workbench(ctx, session, config.stt.language, orchestrator)
+    if orchestrator.external_tools:
+        orchestrator.external_tools.start(agent)
     await session.generate_reply(
         instructions="Greet the user briefly and ask what they would like to try."
     )

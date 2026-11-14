@@ -189,6 +189,8 @@ async def install_workbench(
             ctx.room.local_participant.unregister_rpc_method("voice.confirm_tool")
             ctx.room.local_participant.unregister_rpc_method("voice.tools_state")
             await orchestrator.executor.close()
+            if orchestrator.external_tools:
+                await orchestrator.external_tools.aclose()
         for task in list(tasks):
             task.cancel()
         if tasks:

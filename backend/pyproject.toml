@@ -12,6 +12,9 @@ dependencies = [
 [dependency-groups]
 dev = ["pytest>=8,<10", "ruff>=0.11,<1"]
 
+[project.optional-dependencies]
+mcp = ["livekit-agents[mcp]==1.8.12", "mcp>=2.3,<3", "jsonschema>=4.23,<5"]
+
 [tool.uv]
 package = false
 constraint-dependencies = ["yarl<1.24"]

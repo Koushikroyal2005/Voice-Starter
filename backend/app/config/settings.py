@@ -71,6 +71,8 @@ class Settings:
     allow_batch_stt: bool = False
     require_interim: bool = False
     turn_detection: str = "vad"
+    mcp_enabled: bool = False
+    mcp_config_file: str = "mcp.servers.json"
     tool_allowlist: tuple[str, ...] = (
         "get_current_time",
         "calculate_expression",
@@ -176,6 +178,8 @@ class Settings:
             allow_batch_stt=allow_batch,
             require_interim=require_interim,
             turn_detection=turn_detection,
+            mcp_enabled=boolean(values, "MCP_ENABLED"),
+            mcp_config_file=optional("MCP_CONFIG_FILE", "mcp.servers.json"),
             tool_allowlist=tuple(
                 name.strip()
                 for name in values.get(

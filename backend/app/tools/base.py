@@ -23,9 +23,10 @@ class ToolResult(Schema):
 class ToolFailure(Exception):
     """An intentionally public, non-sensitive domain error."""
 
-    def __init__(self, code: str, message: str):
+    def __init__(self, code: str, message: str, *, outcome_unknown: bool = False):
         self.code = code
         self.message = message
+        self.outcome_unknown = outcome_unknown
         super().__init__(message)
 
 

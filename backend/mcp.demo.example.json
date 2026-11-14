@@ -1,0 +1,34 @@
+{
+  "servers": [
+    {
+      "id": "clock",
+      "enabled": true,
+      "transport": "stdio",
+      "command": "$python",
+      "args": ["-m", "app.mcp.demo_server"],
+      "approved_tools": {
+        "get_current_time": {
+          "remote_name": "get_current_time",
+          "title": "Check external demo clock",
+          "description": "Read the actual UTC time from the local MCP demo server.",
+          "input_schema": {
+            "properties": {},
+            "title": "get_current_timeArguments",
+            "type": "object"
+          },
+          "output_schema": {
+            "type": "object",
+            "properties": { "iso_time": { "type": "string", "format": "date-time" } },
+            "required": ["iso_time"],
+            "additionalProperties": false
+          },
+          "llm_fields": ["iso_time"],
+          "permission": "tools:read",
+          "sensitive": false,
+          "side_effects": false,
+          "cancellation_safe": true
+        }
+      }
+    }
+  ]
+}

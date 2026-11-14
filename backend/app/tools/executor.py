@@ -264,7 +264,13 @@ class ToolExecutor:
                 status,
             )
         except ToolFailure as error:
-            return self._failure(tool, call_id, error.code, error.message)
+            return self._failure(
+                tool,
+                call_id,
+                error.code,
+                error.message,
+                "unknown" if tool.side_effects and error.outcome_unknown else "failed",
+            )
         except Exception:
             # Avoid arguments, output, credentials and raw exception details.
             logger.warning(
