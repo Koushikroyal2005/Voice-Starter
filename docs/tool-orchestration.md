@@ -19,6 +19,7 @@ backend/app/
     base.py                    # Pydantic schemas, definition, context, result and domain error
     registry.py                # Explicit registration/removal, no dynamic imports
     executor.py                # Policy, validation, deadlines, deduplication, execution
+    presentation.py            # Opt-in public summary/card formatting and size/disclosure gates
     permissions.py             # Allowlist + trusted backend permission checks
     confirmation.py            # Expiring, one-use approvals from the linked human
     common/
@@ -102,6 +103,94 @@ approval deadline. Up to eight operations may be active; the ledger holds up to
 256 operation keys and does not silently evict deduplication records. Async timeouts
 are cooperative, not CPU/process isolation: use bounded computation and real
 client-side network deadlines in handlers; never block the event loop.
+
+## Public presentation boundary
+
+Before Opportunity 5, ToolExecutor owned both execution safety and public result
+formatting. `tools/presentation.py` now owns the latter through one synchronous
+Interface: `present_result(definition, validated_output, call_id, approved_cards)`
+returns an event dictionary or None. It cannot execute a handler, authorize a tool,
+obtain confirmation, manage the ledger, cancel tasks, publish events or retry writes.
+There is no new service, executor hierarchy, middleware or event schema.
+
+ToolExecutor still owns permission/input validation, operation key/digest claiming,
+concurrent waiter shielding, confirmation and post-approval rechecks, handler timeout,
+output validation/private serialization, outcome classification, cancellation and
+shutdown. It delegates optional formatting, emits completed, optionally emits the
+public result, then returns/stores the structured operation result. Event delivery
+stays in the existing emitter/workbench bridge; the presenter performs no I/O beyond
+the existing fixed warning. This Seam gives pure formatting tests Leverage without
+rebuilding the asynchronous execution harness; execution invariants retain Locality.
+
+### Preserved behavior (characterized before extraction)
+
+The existing executor validates handler output and serializes private `ToolResult.data`
+before optional public formatting. Only `public_result` opts into a result event;
+`public_card` alone does not publish anything. Private output is not an automatic
+fallback when presentation is absent or fails. The reviewed definition title is
+used unchanged, including an explicitly empty title; no title is inferred from
+internal function names or output fields.
+
+The summary is sliced to 4,000 Python characters before serialization. An optional
+`PublicCard` must use a type in the executor's use-case-owned card allowlist (default
+`text`); its data is serialized with the existing Pydantic model. Unapproved cards,
+formatter/card exceptions, non-serializable public data, non-finite values remaining
+after JSON-mode Pydantic serialization and
+events larger than 12,000 bytes under `json.dumps(..., allow_nan=False)` are dropped
+as a whole. This size check retains Python's default ASCII escaping, including for
+Unicode. It is not the transport's separate 16 KiB UTF-8 budget. Card data is never
+silently truncated to make it fit.
+Pydantic's existing JSON-mode serialization normalizes `NaN` inside ordinary card
+data to JSON null before the size/JSON check; that behavior is retained.
+
+Presentation exceptions produce only the fixed warning `Tool public result unavailable`,
+without arguments, data, credentials, exception details or a traceback. Formatting
+failure does not change a completed operation or trigger retries. The existing order
+is selected -> optional approval -> running -> completed -> optional result. Cached
+duplicates do not rerun the formatter or republish the original result card.
+
+Output-schema validation/private-output JSON serialization happen outside that
+presentation guard and retain existing failure/unknown-write classification.
+`services/workbench.py` remains the transport Adapter: it validates the emitted
+dictionary with shared v1 contracts, queues it and publishes only to the linked user.
+No separate hand-maintained result-event schema is needed in the presenter.
+
+The exact existing order is retained: output model validation and private JSON
+serialization -> optional presentation -> completed activity -> optional result
+event -> completed ToolResult. Presentation failure returns None and logs a safe
+warning, without turning success into failure or asking for a second approval.
+The successful ledger result remains reusable under the same operation key.
+
+### Add a use-case result card
+
+Define a reviewed `public_result` summary and, if needed, a `public_card` callback
+returning the existing `PublicCard(card_type="your_card", data={...})` model. Include
+only explicitly public fields, not an arbitrary private-output dump. Add the card
+identifier to that use case's `result_card_types`; the orchestrator supplies this
+allowlist to the executor/presenter. A custom renderer belongs in the application
+result-card registry, not the common voice shell. The existing education example
+uses `study_plan`; no engine/executor change is required for another reviewed card.
+See [creating a use case](creating-a-new-usecase.md) for the domain service, card
+parser and application renderer example.
+
+Generic and custom cards keep the same v1 `type/id/title/text/card_type/data` fields.
+The presenter retains existing `PublicCard` validation and JSON budgets; the
+workbench Adapter retains shared-schema validation, packet limits, ordering and
+linked-participant delivery. The frontend still validates public event/card data
+and falls back to its existing generic text rendering. No generated types, schemas,
+protocol versions, RPCs, card identifiers or frontend components change here.
+
+### Limits deliberately not redesigned
+
+Formatting failure is not handler/output-validation failure, transport delivery
+failure or external transaction reconciliation. Private-output serialization still
+happens before formatting; an invalid output can retain a failed/unknown outcome.
+An emitter/listener that unexpectedly raises is still governed by the executor's
+existing error handling, not swallowed by the presenter. Making event delivery
+fully independent of execution outcomes is a separate future task. Reviewed
+formatters are synchronous trusted backend code and must remain bounded and pure;
+this module is not a sandbox or a data-loss-prevention engine. In-memory idempotency
+and external write reconciliation retain their existing limitations below.
 
 ## Permissions and human confirmation
 
@@ -216,6 +305,24 @@ replay/expiry, concurrent duplicates, conflicting keys, timeout and failure path
 They do not prove a particular hosted model will select a tool or that voice/audio
 will work without LiveKit and speech-provider credentials. Verify live selection,
 spoken interruption, event cards and audible results with the configured worker.
+
+Opportunity 5 verification (15 November 2026): 68 characterization/execution tests
+passed before extracting production code. The completed backend suite passed
+**346 tests, 10 skipped**, including 33 new presentation cases (16 pure presenter
+cases plus execution-boundary characterization). Ruff lint and formatting passed
+for 93 files. Both contract generation/actual Python fixture agreement checks,
+all 99 frontend unit tests and `git diff --check` passed. The skips remain external
+PostgreSQL/Redis checks and opt-in voice scenarios. No frontend or protocol files
+changed, and no external booking, database write, provider request or live voice
+session was claimed verified. The write/duplicate proof uses an explicitly
+test-only in-memory operation, not a real external business integration.
+
+The existing `test_tools.py` regression tests retain confirmation identity/replay/
+expiry, permission revocation/removal while waiting, owner and duplicate-waiter
+cancellation, concurrent idempotency, timed-out unknown writes and shutdown checks.
+The new `test_tool_presentation.py` focuses on public/private separation, rejected
+cards/formatters, serialization budgets, reviewed metadata and successful-write
+outcomes when presentation fails; it does not reimplement execution safety tests.
 
 Official API references checked against the installed SDK:
 [function tools](https://docs.livekit.io/agents/logic/tools/definition/) and

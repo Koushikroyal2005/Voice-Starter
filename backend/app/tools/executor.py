@@ -13,6 +13,7 @@ from app.agents.state_manager import Operation, StateManager
 from app.tools.base import ExecutionContext, ToolDefinition, ToolFailure, ToolResult
 from app.tools.confirmation import ConfirmationManager
 from app.tools.permissions import require_permission
+from app.tools.presentation import present_result
 from app.tools.registry import ToolRegistry
 
 logger = logging.getLogger("voice-starter.tools")
@@ -239,25 +240,7 @@ class ToolExecutor:
                     await tool.handler(args, context)
                 )
             data = output.model_dump(mode="json")
-            public_event = None
-            if tool.public_result:
-                try:
-                    public_event = {
-                        "type": "result",
-                        "id": call_id,
-                        "title": tool.title,
-                        "text": tool.public_result(output)[:4000],
-                    }
-                    if tool.public_card:
-                        card = tool.public_card(output)
-                        if card.card_type not in self.public_card_types:
-                            raise ValueError("Unapproved public card type")
-                        public_event.update(card.model_dump(mode="json"))
-                    if len(json.dumps(public_event, allow_nan=False).encode()) > 12000:
-                        raise ValueError("Public result is too large")
-                except Exception:
-                    public_event = None
-                    logger.warning("Tool public result unavailable")
+            public_event = present_result(tool, output, call_id, self.public_card_types)
             self.event(call_id, tool, "completed")
             if public_event:
                 self.emit(public_event)
