@@ -178,6 +178,37 @@ class Value(Schema):
     value: int = Field(ge=0)
 
 
+def test_cancelling_duplicate_waiter_does_not_cancel_shared_read():
+    async def run():
+        started, release = asyncio.Event(), asyncio.Event()
+        calls = []
+
+        async def read(_args, _context):
+            calls.append(1)
+            started.set()
+            await release.wait()
+            return Value(value=7)
+
+        tool = ToolDefinition(
+            "shared_read", "Shared read", "Test read", Empty, Value, read
+        )
+        executor, events = runtime(tool)
+        owner = asyncio.create_task(executor.execute(tool.name, {}, call_id="same"))
+        await started.wait()
+        duplicate = asyncio.create_task(executor.execute(tool.name, {}, call_id="same"))
+        await asyncio.sleep(0)
+        duplicate.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await duplicate
+        assert not owner.done()
+        assert not any(e.get("status") == "cancelled" for e in events)
+        release.set()
+        assert (await owner).data == {"value": 7} and calls == [1]
+        await executor.close()
+
+    asyncio.run(run())
+
+
 def test_timeout_cancellation_failure_and_output_validation():
     async def run():
         async def slow(args, context):

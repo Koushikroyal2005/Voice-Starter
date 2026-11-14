@@ -1,4 +1,51 @@
 services:
+  frontend:
+    profiles: ['app']
+    build:
+      context: .
+      target: ${FRONTEND_TARGET:-development}
+    env_file:
+      - path: ${FRONTEND_ENV_FILE:-.env.local}
+        required: false
+    ports:
+      - '127.0.0.1:3000:3000'
+    init: true
+    security_opt: ['no-new-privileges:true']
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:3000').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      start_period: 120s
+      retries: 3
+  worker:
+    profiles: ['app']
+    build:
+      context: ./backend
+    env_file:
+      - path: ${BACKEND_ENV_FILE:-backend/.env}
+        required: false
+    environment:
+      # Container DNS differs from native Windows localhost URLs. Generated hex
+      # passwords need no URL escaping; otherwise set explicit encoded URLs.
+      DATABASE_URL: ${WORKER_DATABASE_URL:-postgresql+asyncpg://voice_starter:${POSTGRES_PASSWORD}@postgres:5432/voice_starter}
+      REDIS_URL: ${WORKER_REDIS_URL:-redis://:${REDIS_PASSWORD:-}@redis:6379/0}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+        required: false
+    ports:
+      - '127.0.0.1:8081:8081'
+    init: true
+    stop_grace_period: 180s
+    security_opt: ['no-new-privileges:true']
   postgres:
     image: postgres:17
     environment:
@@ -6,19 +53,19 @@ services:
       POSTGRES_USER: voice_starter
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in your shell}
     ports:
-      - "127.0.0.1:5432:5432"
+      - '127.0.0.1:5432:5432'
     volumes:
       - voice_postgres:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U voice_starter -d voice_starter"]
+      test: ['CMD-SHELL', 'pg_isready -U voice_starter -d voice_starter']
       interval: 5s
       timeout: 3s
       retries: 10
   redis:
     image: redis:8
-    profiles: ["redis"]
+    profiles: ['redis']
     ports:
-      - "127.0.0.1:6379:6379"
+      - '127.0.0.1:6379:6379'
     environment:
       REDIS_PASSWORD: ${REDIS_PASSWORD:-}
     command:
@@ -26,7 +73,7 @@ services:
       - -ec
       - 'test -n "$$REDIS_PASSWORD"; exec redis-server --requirepass "$$REDIS_PASSWORD" --save "" --appendonly no'
     healthcheck:
-      test: ["CMD-SHELL", 'REDISCLI_AUTH="$$REDIS_PASSWORD" redis-cli ping | grep -q PONG']
+      test: ['CMD-SHELL', 'REDISCLI_AUTH="$$REDIS_PASSWORD" redis-cli ping | grep -q PONG']
       interval: 5s
       timeout: 3s
       retries: 10

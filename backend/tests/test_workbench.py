@@ -39,6 +39,7 @@ def bridge():
     session = SimpleNamespace(
         room_io=SimpleNamespace(linked_participant=SimpleNamespace(identity="user")),
         interrupt=AsyncMock(),
+        aclose=AsyncMock(),
         on=register(events),
     )
     return ctx, session, handlers, events
@@ -102,6 +103,64 @@ def test_public_usecase_rpc_requires_linked_caller_and_has_no_private_fields():
             == "education"
         )
         await ctx.add_shutdown_callback.call_args.args[0]()
+
+    asyncio.run(run())
+
+
+def test_concurrent_shutdown_flushes_history_before_exporters(monkeypatch):
+    from app.observability import session as telemetry_module
+
+    async def run():
+        ctx, session, _, _ = bridge()
+        callbacks, order = [], []
+        ctx.add_shutdown_callback.side_effect = callbacks.append
+        lock = asyncio.Lock()
+        closed = False
+
+        async def close_session():
+            nonlocal closed
+            async with lock:
+                if not closed:
+                    await asyncio.sleep(0)
+                    order.append("final_history")
+                    closed = True
+
+        session.aclose = close_session
+        orchestrator = Orchestrator(SimpleNamespace(tool_allowlist=()))
+
+        async def executor_close():
+            order.append("tools_closed")
+
+        async def mcp_close():
+            order.append("mcp_closed")
+
+        async def persistence_close():
+            order.append("persistence_flushed")
+
+        orchestrator.executor.close = executor_close
+        orchestrator.external_tools = SimpleNamespace(aclose=mcp_close)
+        orchestrator.close_infrastructure = persistence_close
+        fake = SimpleNamespace(
+            session_id="test",
+            request_id="job",
+            provider=object(),
+            event=Mock(),
+            close=lambda: order.append("exporter_closed"),
+        )
+        monkeypatch.setattr(telemetry_module, "Telemetry", lambda *a, **k: fake)
+        monkeypatch.setattr(telemetry_module, "set_tracer_provider", Mock())
+        telemetry_module.install_observability(
+            ctx, session, orchestrator, SimpleNamespace()
+        )
+        await install_workbench(ctx, session, "en", orchestrator)
+        await asyncio.gather(*(callback() for callback in callbacks))
+        assert order == [
+            "final_history",
+            "tools_closed",
+            "mcp_closed",
+            "persistence_flushed",
+            "exporter_closed",
+        ]
 
     asyncio.run(run())
 

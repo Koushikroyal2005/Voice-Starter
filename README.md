@@ -1,210 +1,187 @@
 # Voice-Starter
 
-Reusable voice AI starter: the existing Next.js / React LiveKit frontend at the
-repository root and a separate Python LiveKit Agents worker in `backend/`.
+A reusable hackathon foundation: **Next.js at the repository root**, one separate
+Python LiveKit Agents worker in `backend/`, and replaceable native STT → LLM → TTS
+plugins. Browser and worker join the same **external LiveKit project**; the browser
+does not call the Python worker over HTTP.
 
-The browser connects to LiveKit, and LiveKit dispatches a Python worker job into
-the room. The browser does not call the Python process over HTTP. STT, LLM, and
-TTS run through backend provider plugins; their keys never enter browser code.
+This is a development starter, not a publicly deployable product. The existing
+unauthenticated `/api/token` endpoint **works only in `next dev`** and returns 403
+in production/preview. Do not remove that guard to get a public demo working.
 
-## Local Windows setup
+## Implemented capabilities
 
-Requirements: Node.js 24, Python 3.13 (installed by uv below), uv, and a LiveKit
-project plus provider accounts. PowerShell commands use Corepack and `.cmd` where
-needed so no execution-policy change is required. If Corepack is unavailable,
-install it with `npm.cmd install --global corepack`.
+- LiveKit session integration, native streaming providers, partial/final transcripts,
+  voice/text input, interruption, microphone controls and reconnection handling.
+- Reusable mobile/desktop Voice Workbench, light/dark themes, separate microphone
+  and agent-track visualization; aura, bar, grid, radial and wave options.
+- Configuration-driven provider registry, bounded retries and opt-in native fallback.
+- Typed tools, permissions, allowlists, confirmation, timeouts and session-local
+  idempotency. Harmless clock/calculator tools and a sequential workflow.
+- Optional approved MCP stdio/Streamable HTTP tools, never blindly trusted discovery.
+- Opt-in PostgreSQL metadata/transcripts/tool history with SQLAlchemy/Alembic;
+  optional disposable Redis cache/rate limiter. No raw-audio storage path.
+- JSON logs, per-turn measurements, OpenTelemetry, optional Sentry/Prometheus,
+  readiness checks and opt-in real-audio scenarios.
+- Isolated use-case modules: general assistant, an education tool/service/card
+  example, and clearly limited healthcare/finance/business scaffolds.
 
-From the repository root:
+Implemented does not mean verified against paid services. See the
+[engineering audit](docs/engineering-audit.md) for evidence and limitations.
+No real voice call, acoustic benchmark, paid-provider fallback or deployment is
+claimed verified without credentials and an actual test.
+
+## Windows PowerShell quick start
+
+Requirements: Node **24**, Corepack/pnpm **9.15.9**, uv, Python **3.13** (uv can
+install it), a LiveKit project and provider accounts. Docker Desktop's Linux engine
+is needed only for containers. No execution-policy change is necessary.
 
 ```powershell
+cd 'E:\voice agent starter\voice-agent-starter'
 node --version
+# If Corepack is missing: npm.cmd install --global corepack
 corepack pnpm install --frozen-lockfile
-winget install --id astral-sh.uv --exact
-# Reopen PowerShell if uv was newly installed.
-Copy-Item .env.example .env.local  # Only if .env.local does not already exist.
+# If uv is missing: winget install --id astral-sh.uv --exact
+if (!(Test-Path -LiteralPath .env.local)) { Copy-Item .env.example .env.local }
+if (!(Test-Path -LiteralPath backend/.env)) { Copy-Item backend/.env.example backend/.env }
 notepad .env.local
+notepad backend/.env
 ```
 
-Fill the root `.env.local` with real values:
+Set these **same** server values in both files:
 
 ```dotenv
-LIVEKIT_URL=wss://your-project.livekit.cloud
-LIVEKIT_API_KEY=your-livekit-key
-LIVEKIT_API_SECRET=your-livekit-secret
+LIVEKIT_URL=wss://YOUR_PROJECT.livekit.cloud
+LIVEKIT_API_KEY=YOUR_LIVEKIT_API_KEY
+LIVEKIT_API_SECRET=YOUR_LIVEKIT_API_SECRET
 AGENT_NAME=voice-starter
 ```
 
-Then prepare the backend:
+Only `backend/.env` also needs the selected providers' credentials:
+
+```dotenv
+STT_PROVIDER=deepgram
+LLM_PROVIDER=openai_compatible
+TTS_PROVIDER=cartesia
+DEEPGRAM_API_KEY=YOUR_DEEPGRAM_KEY
+LLM_API_KEY=YOUR_OPENAI_OR_COMPATIBLE_KEY
+CARTESIA_API_KEY=YOUR_CARTESIA_KEY
+USE_CASE=general_assistant
+```
+
+These are placeholders. Never use `NEXT_PUBLIC_` for secrets. Shell environment
+overrides `.env` files; restart processes after changes. Automatic dispatch requires
+blank `AGENT_NAME` in **both** files; named dispatch must match exactly. Assistant
+display names are separate from dispatch registration.
 
 ```powershell
 cd backend
 uv python install 3.13
-uv sync --locked
-Copy-Item .env.example .env  # Only if .env does not already exist.
-notepad .env
-```
-
-In `backend/.env`, use the **same four values** as the frontend, plus provider keys:
-
-```dotenv
-LIVEKIT_URL=wss://your-project.livekit.cloud
-LIVEKIT_API_KEY=your-livekit-key
-LIVEKIT_API_SECRET=your-livekit-secret
-AGENT_NAME=voice-starter
-STT_PROVIDER=deepgram
-LLM_PROVIDER=openai_compatible
-TTS_PROVIDER=cartesia
-DEEPGRAM_API_KEY=your-deepgram-key
-LLM_API_KEY=your-openai-or-compatible-key
-CARTESIA_API_KEY=your-cartesia-key
-```
-
-The example values above are placeholders. Do not commit actual credentials.
-`.env.local` and `backend/.env` are ignored. Never use `NEXT_PUBLIC_` for secrets.
-Process environment variables take precedence over files; check for stale values
-if the files appear correct but configuration differs.
-
-Before starting, from `backend/`:
-
-```powershell
+uv sync --locked --extra mcp --extra telemetry
 uv run python -m app.check_setup
-uv run python -m livekit.agents download-files
+uv run python -m app.main download-files
+uv run --extra mcp --extra telemetry python -m app.main dev
 ```
 
-The setup check compares local development environment settings without printing
-credentials. It checks URL, key, secret and dispatch-name equality, and selected
-provider configuration. It cannot validate account access or compare environment
-variables set only in a different running shell.
-
-## Run two separate processes
-
-PowerShell window 1 — from the repository root:
+Keep the worker running. In a second PowerShell window:
 
 ```powershell
+cd 'E:\voice agent starter\voice-agent-starter'
 corepack pnpm dev
 ```
 
-PowerShell window 2 — from the repository root:
+Open <http://localhost:3000>. Start a session, allow microphone access, verify worker
+job receipt, user transcript, LLM answer and **audible** TTS. Try barge-in, explicit
+interrupt, mute, text input, disconnect and a fresh reconnect. A transcript alone
+does not prove audio playback. `Start Audio` handles browser autoplay restrictions.
+
+## Local containers
+
+LiveKit Cloud/SFU is **not** included. Continue using your external project URL and
+credentials. Dockerfiles exclude `.env` files and run application processes as
+non-root users. Never pass provider secrets as build arguments.
 
 ```powershell
-cd backend
-uv run python -m app.main dev
+cd 'E:\voice agent starter\voice-agent-starter'
+if (!(Test-Path -LiteralPath .env.compose)) { Copy-Item .env.compose.example .env.compose }
+notepad .env.compose
+# Set a strong persistent POSTGRES_PASSWORD; REDIS_PASSWORD only if using Redis.
+# Fill .env.local and backend/.env as above.
+docker compose --env-file .env.compose config --quiet
+docker compose --env-file .env.compose --profile app up --build -d
+docker compose --env-file .env.compose --profile app logs -f worker frontend
+# Optional Redis; enable REDIS_ENABLED in backend/.env only if using it:
+docker compose --env-file .env.compose --profile redis up -d --wait redis
 ```
 
-Keep both running, then open http://localhost:3000. Restart both after changing
-environment values. No FastAPI or extra HTTP backend is required for voice calls.
+The default frontend target is **development**, bound to host loopback, so the dev
+token issuer works locally. A production target is also provided, but its token
+route remains blocked. See [Docker and deployment](docs/docker.md) for migration
+commands, container DNS, service profiles and production requirements.
 
-## Dispatch and development token endpoint
+Native voice-only development requires no PostgreSQL or Redis. When persistence is
+enabled, PostgreSQL and migrations become mandatory. Transcript storage is separately
+opt-in. Redis is never the permanent source of truth. See [persistence](docs/persistence.md).
 
-Named dispatch is recommended for this local setup: set `AGENT_NAME=voice-starter`
-in both files. The Python worker registers that name; the frontend Session API
-requests it; `/api/token` puts the server-configured name into the participant JWT.
-
-Automatic dispatch also works: leave `AGENT_NAME` blank in **both** files. The
-token contains no named dispatch, and an unnamed worker is dispatched automatically.
-Use a project without competing unnamed workers for a predictable demo.
-
-The frontend always uses its existing `/api/token` route. It no longer falls back
-to the public homepage agent or uses `LIVEKIT_TOKEN_SERVER_ID`. Missing configuration
-returns an actionable 503 response instead of connecting to someone else's demo.
-The route returns only the server URL, room/participant details and a short-lived
-participant JWT; it never returns `LIVEKIT_API_SECRET` or provider keys.
-
-**This token endpoint is unauthenticated and development-only.** It returns 403
-outside `next dev`, including preview deployments. A production build can compile,
-but `next start` intentionally cannot issue tokens. Production requires a separate
-authenticated, authorized token-issuance implementation.
-
-Every token refresh generates a new room and participant identity. LiveKit's
-existing Session API manages transient network reconnection and refreshes tokens
-for later calls. Failed starts show a toast and restore the Start call button;
-duplicate clicks are blocked while connecting. Unexpected disconnects return to
-the welcome screen. The existing agent-failure handler ends failed sessions.
-
-This worker accepts audio and text. Camera and screen-share inputs are hidden
-because this backend does not currently process visual input. Visualizers, media
-controls, transcript components and the existing design are retained.
-
-## Verify a real voice session
-
-With real credentials and both processes running:
-
-1. Open http://localhost:3000 and click **Start call**. Allow microphone access.
-2. Confirm Python logs show worker registration, an accepted job, and **Voice job
-   received**. If no job arrives, check the LiveKit project and dispatch name.
-3. Hear the greeting. If autoplay is blocked, click the existing **Start Audio** button.
-4. Speak a short question. Open the existing transcript panel and verify your
-   words appear. With streaming STT, partial transcripts may update before final text.
-5. Confirm the agent moves through thinking/speaking, produces a relevant answer,
-   and its response transcript appears. A visible transcript alone does not prove audio.
-6. Listen for audible TTS playback and try interrupting the answer.
-7. Click **End call**. Confirm microphone capture stops and the welcome screen
-   returns. Python should log **Voice session closed** and shut down that job;
-   the worker process stays available for the next call.
-8. Start another call without refreshing. Confirm a fresh room/job and no old
-   transcript. For failure recovery, stop the worker, try a call, then restart it
-   and retry after the session reports the missing agent.
-
-Without valid credentials, job dispatch, STT, LLM generation, TTS playback, and
-live disconnect/reconnect behavior remain unverified. Configuration checks and
-offline tests do not establish that a voice conversation works.
-
-## Automated checks
-
-From the repository root:
+## Verification commands
 
 ```powershell
-corepack pnpm test:token
+# Repository root
+corepack pnpm install --frozen-lockfile
+corepack pnpm lint
+corepack pnpm typecheck
+corepack pnpm test
 corepack pnpm build
-```
+corepack pnpm security:secrets
+node scripts/check-secrets.mjs --history
 
-From `backend/`:
-
-```powershell
+cd backend
+uv sync --locked --extra mcp --extra telemetry
+uv run ruff check app tests
+uv run ruff format --check app tests
 uv run pytest -q
-uv run ruff check .
-uv run ruff format --check .
 ```
 
-Token tests use synthetic credentials entirely offline: development-only issuance,
-missing configuration, server-controlled dispatch, unique rooms, JWT grants and
-absence of returned secrets. Backend tests cover provider construction, configuration
-matching, dispatch names, capabilities and Windows serialization. The frontend's
-existing Google font requires network access during a clean build.
+Real PostgreSQL/Redis contracts require dedicated `TEST_DATABASE_URL` and
+`TEST_REDIS_URL`. Real voice replay requires `RUN_REAL_VOICE_EVAL=true` plus consented
+WAV fixtures/provider credentials. Missing prerequisites are skipped, not successful
+benchmarks. Local MCP tests start actual harmless stdio/HTTP servers when its extra
+is installed. Clean builds need internet for packages, the Google font and worker
+model assets. CI uses Node 24 and locked Python/frontend dependencies.
 
-## Project layout
+## Documentation and reusable parts
 
-- `app/page.tsx`: server-side composition of the existing voice app.
-- `app/api/token/route.ts`: development-only JWT issuer and dispatch configuration.
-- `components/app/`: existing welcome/session views and connection controls.
-- `components/agents-ui/`: existing reusable LiveKit controls, visualizers and transcript.
-- `components/ui/`, `styles/`: existing local UI primitives and design tokens.
-- `backend/`: independent Python agent process, provider registry/factory and tests.
-- `tests/token-route.test.cjs`: offline tests of the actual Next.js token route.
+- [Architecture diagram and boundaries](docs/architecture.md)
+- [Backend development](docs/backend-development.md)
+- [Provider integration](docs/provider-integration.md)
+- [MCP integration](docs/mcp-integration.md)
+- [Creating a new use case](docs/creating-a-new-usecase.md)
+- [Tool orchestration](docs/tool-orchestration.md)
+- [Voice UI and audio sources](docs/voice-workbench.md)
+- [Persistence and Redis](docs/persistence.md)
+- [Observability/debugging latency](docs/observability.md)
+- [Voice evaluation](docs/voice-evaluation.md)
+- [Troubleshooting](docs/troubleshooting.md)
+- [Engineering audit](docs/engineering-audit.md)
 
-See [backend/README.md](backend/README.md) for provider selection, batch Whisper
-limitations, compatible NIM/vLLM endpoints, and adding new providers.
+Reuse the voice shell/Agents UI, provider factory, deterministic tool executor,
+approved MCP layer, ownership-scoped persistence, telemetry and scenario harness.
+Put business services/tables/cards in use-case modules, not common code.
+`USE_CASE=education` demonstrates this separation.
 
-See [Voice Workbench](docs/voice-workbench.md) for the reusable UI components,
-state/event model, real audio sources, interruption bridge and verification checklist.
+## Before public production deployment
 
-See [Tool orchestration](docs/tool-orchestration.md) for the single-agent tool engine,
-safe demo tools/workflow, permission/confirmation policies and use-case extension guide.
+Replace the dev issuer with authenticated and tenant-authorized token issuance,
+stable server-derived participant identity, room/tool permissions, CSRF/origin
+controls, quotas and abuse protection. Keep secrets in a secret manager; configure
+TLS, restricted DB roles, migrations, backups, consent/retention, endpoint access,
+provider data residency, durable business idempotency and operational monitoring.
+Dockerfiles are packaging, not deployment verification or a security certification.
+The dependency audit still reports two low KaTeX paths; see the audit report before
+public deployment. Next 15.5.28 and scoped dependency patches address the detected
+critical/high findings without migrating to Next 16.
 
-See [Optional MCP tools](docs/mcp.md) for verified local stdio/HTTP demos, approved-tool
-policies, private configuration and adding external hackathon integrations.
-
-## Optional persistence
-
-See [persistence setup and security boundaries](docs/persistence.md) for PostgreSQL,
-Alembic, opt-in transcripts and optional Redis. No infrastructure service is required
-for the default voice-only setup.
-
-See [observability and reliability](docs/observability.md) for correlation IDs,
-stage timings, optional OTLP/Sentry/Prometheus, and debugging slow interactions.
-[Voice evaluation](docs/voice-evaluation.md) separates deterministic fault tests from
-opt-in real-provider audio scenarios and measured results from targets.
-
-See [creating a new use case](docs/creating-a-new-usecase.md) for isolated prompts,
-tools, services, policies and custom cards. Set backend `USE_CASE=education` to try
-Study Companion, or leave it unset for the general assistant.
+The root license is MIT, but an aura shader has a different upstream notice. Read
+[third-party notices](THIRD_PARTY_NOTICES.md) before redistribution/commercial reuse.
+Healthcare/finance examples are not validated or compliant products.

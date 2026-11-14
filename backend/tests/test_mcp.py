@@ -321,9 +321,14 @@ def test_multiple_servers_background_activation_and_reconnect_without_call_repla
     asyncio.run(run())
 
 
-def test_real_bootstrap_activation_and_native_agent_tool_call():
+def test_real_bootstrap_activation_and_native_agent_tool_call(monkeypatch):
     from app.agents.orchestrator import MainAgent
     from app.bootstrap import build_orchestrator
+
+    # Match the other real-transport fixtures: cold Windows subprocess startup
+    # under a concurrent frontend build can exceed the production 5s default.
+    config = MCPConfig(servers=[clock_config()])
+    monkeypatch.setattr("app.mcp.config.load_config", lambda path: config)
 
     async def run():
         settings = SimpleNamespace(
@@ -340,10 +345,9 @@ def test_real_bootstrap_activation_and_native_agent_tool_call():
         agent = MainAgent(settings, orchestrator)
         registry.start(agent)
         try:
-            for _ in range(200):
-                if "mcp_clock_get_current_time" in orchestrator.allowlist:
-                    break
-                await asyncio.sleep(0.05)
+            async with asyncio.timeout(30):
+                while "mcp_clock_get_current_time" not in orchestrator.allowlist:
+                    await asyncio.sleep(0.05)
             tool = next(
                 t for t in orchestrator.tools() if t.id == "mcp_clock_get_current_time"
             )

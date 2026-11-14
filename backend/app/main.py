@@ -56,6 +56,8 @@ def create_server() -> AgentServer:
     download_only = "download-files" in sys.argv or "--help" in sys.argv
     settings = None if download_only else load_settings()
     server = AgentServer(
+        drain_timeout=30,
+        shutdown_process_timeout=140,
         **(
             {
                 "ws_url": settings.livekit_url,
@@ -64,7 +66,7 @@ def create_server() -> AgentServer:
             }
             if settings
             else {}
-        )
+        ),
     )
 
     # Keep the callback at module scope so Windows multiprocessing can pickle it.

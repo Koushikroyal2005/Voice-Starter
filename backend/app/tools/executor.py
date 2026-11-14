@@ -99,6 +99,7 @@ class ToolExecutor:
             key = f"{self.state.conversation_id}:{self.state.actor_id}:"
             key += f"{name}:{idempotency_key or call_id}"
             operation = self.ledger.operations.get(key)
+            owns_operation = operation is None
             if operation and operation.digest != digest:
                 raise ToolFailure(
                     "idempotency_conflict",
@@ -118,7 +119,7 @@ class ToolExecutor:
                         tool, args, call_id, key, digest, idempotency_key, ancestors
                     )
                 )
-                operation = Operation(digest, task, tool.cancellation_safe)
+                operation = Operation(digest, task, tool.cancellation_safe, call_id)
                 self.ledger.operations[key] = operation
             # A duplicate waiter must never cancel the shared operation by itself.
             async with asyncio.timeout(
@@ -137,10 +138,18 @@ class ToolExecutor:
             if (
                 "operation" in locals()
                 and operation
+                and owns_operation
                 and (operation.cancellation_safe or key not in self.running_writes)
             ):
                 operation.task.cancel()
                 await asyncio.gather(operation.task, return_exceptions=True)
+            if (
+                "operation" in locals()
+                and operation
+                and not owns_operation
+                and operation.call_id == call_id
+            ):
+                raise  # Do not mark the shared owner's activity cancelled.
             self.event(
                 call_id,
                 tool,

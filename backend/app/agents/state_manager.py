@@ -11,6 +11,7 @@ class Operation:
     digest: str
     task: asyncio.Task[ToolResult]
     cancellation_safe: bool
+    call_id: str = ""
 
 
 class StateManager:

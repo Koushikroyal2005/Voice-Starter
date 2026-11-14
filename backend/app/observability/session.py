@@ -262,7 +262,10 @@ def install_observability(ctx, session, orchestrator, settings):
         # cancellation before shutting down their exporter.
         try:
             await session.aclose()
-            await orchestrator.executor.close()
+            if orchestrator.workbench_installed:
+                await orchestrator.cleanup_complete.wait()
+            else:
+                await orchestrator.executor.close()
         finally:
             await observer.close()
 

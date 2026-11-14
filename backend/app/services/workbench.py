@@ -201,22 +201,36 @@ async def install_workbench(
         # Never forward raw arguments, tool results or provider exception details.
 
     async def cleanup() -> None:
-        ctx.room.local_participant.unregister_rpc_method("voice.interrupt")
-        if orchestrator:
-            ctx.room.local_participant.unregister_rpc_method("voice.confirm_tool")
-            ctx.room.local_participant.unregister_rpc_method("voice.tools_state")
-            ctx.room.local_participant.unregister_rpc_method("voice.usecase_config")
-            await orchestrator.executor.close()
-            if orchestrator.external_tools:
-                await orchestrator.external_tools.aclose()
-            if orchestrator.close_infrastructure:
-                await orchestrator.close_infrastructure()
-        for task in list(tasks):
-            task.cancel()
-        if tasks:
-            await asyncio.gather(*tasks, return_exceptions=True)
+        try:
+            # SDK shutdown callbacks run concurrently. Wait for native history/audio
+            # teardown before flushing the persistence queue and ending exporters.
+            await session.aclose()
+            ctx.room.local_participant.unregister_rpc_method("voice.interrupt")
+            if orchestrator:
+                for method in (
+                    "voice.confirm_tool",
+                    "voice.tools_state",
+                    "voice.usecase_config",
+                ):
+                    ctx.room.local_participant.unregister_rpc_method(method)
+                await orchestrator.executor.close()
+                try:
+                    if orchestrator.external_tools:
+                        await orchestrator.external_tools.aclose()
+                finally:
+                    if orchestrator.close_infrastructure:
+                        await orchestrator.close_infrastructure()
+        finally:
+            for task in list(tasks):
+                task.cancel()
+            if tasks:
+                await asyncio.gather(*tasks, return_exceptions=True)
+            if orchestrator:
+                orchestrator.cleanup_complete.set()
 
     ctx.add_shutdown_callback(cleanup)
+    if orchestrator:
+        orchestrator.workbench_installed = True
     attributes = {"voice.language": language}
     if orchestrator:
         attributes["voice.usecase"] = orchestrator.public_use_case.id

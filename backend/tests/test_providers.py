@@ -199,6 +199,34 @@ def test_provider_model_validation():
         Settings.from_env(environment() | {"STT_MODEL": "flux-general-en"})
 
 
+@pytest.mark.parametrize(
+    "provider,language", [("cartesia", "es"), ("elevenlabs", "es"), ("murf", "es-ES")]
+)
+def test_tts_language_reaches_installed_plugin(provider, language):
+    spec = registry.get("tts", provider)
+
+    async def check():
+        instance = create_tts(
+            ProviderConfig(
+                "tts",
+                provider,
+                spec.model,
+                "test-key",
+                voice=spec.voice,
+                language=language,
+            )
+        )
+        try:
+            actual = (
+                instance._opts.locale if provider == "murf" else instance._opts.language
+            )
+            assert str(actual) == language
+        finally:
+            await instance.aclose()
+
+    asyncio.run(check())
+
+
 def test_compatible_endpoint_options_reach_real_client():
     settings = Settings.from_env(
         environment()

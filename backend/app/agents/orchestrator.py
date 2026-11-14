@@ -49,6 +49,8 @@ class Orchestrator:
         self.event_listeners = []
         self.close_infrastructure = None
         self.telemetry = None
+        self.workbench_installed = False
+        self.cleanup_complete = asyncio.Event()
         self.executor = ToolExecutor(
             self.registry, self.state, self.allowlist, self.emit
         )
