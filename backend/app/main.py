@@ -1,19 +1,33 @@
 """Windows-safe module entrypoint: uv run python -m app.main dev."""
 
+import logging
 import sys
 
-from livekit.agents import AgentServer, JobContext, cli
+from livekit.agents import AgentServer, JobContext, cli, room_io
 
 from app.agents.demo import DemoAgent
 from app.config.settings import ConfigurationError, load_settings
 from app.providers.pipeline import create_session
 from app.providers.registry import ProviderError
 
+logger = logging.getLogger("voice-starter")
+
 
 async def voice_session(ctx: JobContext) -> None:
     config = load_settings()
+    logger.info("Voice job received", extra={"room": ctx.room.name})
     session = create_session(config)
-    await session.start(agent=DemoAgent(config), room=ctx.room)
+
+    @session.on("close")
+    def on_session_close(_event):
+        logger.info("Voice session closed", extra={"room": ctx.room.name})
+        ctx.shutdown(reason="voice_session_closed")
+
+    await session.start(
+        agent=DemoAgent(config),
+        room=ctx.room,
+        room_options=room_io.RoomOptions(close_on_disconnect=True),
+    )
     await ctx.connect()
     await session.generate_reply(
         instructions="Greet the user briefly and ask what they would like to try."

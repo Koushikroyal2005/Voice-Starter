@@ -21,20 +21,13 @@ function AppSetup() {
 }
 
 interface AppProps {
-  tokenServerId?: string;
   tokenEndpoint: string;
   agentName?: string;
   isVideoInputSupported: boolean;
 }
 
-export function App({ tokenServerId, tokenEndpoint, agentName, isVideoInputSupported }: AppProps) {
-  const tokenSource = useMemo(
-    () =>
-      tokenServerId
-        ? TokenSource.developmentTokenServer(tokenServerId)
-        : TokenSource.endpoint(tokenEndpoint),
-    [tokenServerId, tokenEndpoint]
-  );
+export function App({ tokenEndpoint, agentName, isVideoInputSupported }: AppProps) {
+  const tokenSource = useMemo(() => TokenSource.endpoint(tokenEndpoint), [tokenEndpoint]);
 
   const session = useSession(tokenSource, agentName ? { agentName } : undefined);
 

@@ -59,7 +59,12 @@ export function useAgentErrors() {
         ),
       });
 
-      end();
+      void end().catch(() => {
+        toastAlert({
+          title: 'Could not finish disconnecting',
+          description: 'Reload the page before starting another call.',
+        });
+      });
     }
   }, [agent, isConnected, end]);
 }

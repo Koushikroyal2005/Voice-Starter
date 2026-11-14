@@ -28,7 +28,7 @@ startup is `uv run python -m app.main start`.
 
 Configuration uses environment variables (no YAML loader is needed). Process
 variables override `backend/.env`. Optional blank values use provider defaults.
-Restart the worker after changes. Never use NEXT_PUBLIC_ for credentials.
+Restart the worker after changes. Never use NEXT*PUBLIC* for credentials.
 `backend/.env` and environment variants are ignored by Git.
 
 Always required: `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`.
@@ -126,11 +126,13 @@ lifecycles are preserved. There is no custom buffering or text-only wrapper.
 ## Frontend connection
 
 Use the same LiveKit project in frontend and backend. Root `.env.local` needs
-`LIVEKIT_URL`, `LIVEKIT_API_KEY`, and `LIVEKIT_API_SECRET`. Clear
-`LIVEKIT_TOKEN_SERVER_ID` to use the existing `/api/token`; otherwise a development
-token server takes precedence. With no LiveKit configuration the frontend connects
-to the public homepage demo, not this backend. The existing frontend already
-preserves `room_config` for named agent dispatch. Restart both after configuration.
+`LIVEKIT_URL`, `LIVEKIT_API_KEY`, and `LIVEKIT_API_SECRET`. The frontend always
+uses its existing development-only `/api/token`; it does not use
+`LIVEKIT_TOKEN_SERVER_ID` or fall back to the public demo. Missing configuration
+returns 503; token issuance outside development returns 403. The server sets
+named dispatch from its own `AGENT_NAME`. Restart both after configuration.
+Run `uv run python -m app.check_setup` from backend to compare local configuration
+without printing secrets. See the root README for the full two-process checklist.
 
 In a second PowerShell window, from the repository root:
 

@@ -21,11 +21,13 @@ function WelcomeImage() {
 interface WelcomeViewProps {
   startButtonText: string;
   onStartCall: () => void;
+  isStarting?: boolean;
 }
 
 export const WelcomeView = ({
   startButtonText,
   onStartCall,
+  isStarting = false,
   ref,
 }: React.ComponentProps<'div'> & WelcomeViewProps) => {
   return (
@@ -40,6 +42,7 @@ export const WelcomeView = ({
         <Button
           size="lg"
           onClick={onStartCall}
+          disabled={isStarting}
           className="mt-6 w-64 rounded-full font-mono text-xs font-bold tracking-wider uppercase"
         >
           {startButtonText}

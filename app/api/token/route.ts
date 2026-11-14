@@ -5,6 +5,7 @@ import {
   RoomConfiguration,
   type VideoGrant,
 } from 'livekit-server-sdk';
+import { randomUUID } from 'node:crypto';
 
 type ConnectionDetails = {
   serverUrl: string;
@@ -14,18 +15,36 @@ type ConnectionDetails = {
 };
 
 // NOTE: you are expected to define the following environment variables in `.env.local`:
-const API_KEY = process.env.LIVEKIT_API_KEY;
-const API_SECRET = process.env.LIVEKIT_API_SECRET;
-const LIVEKIT_URL = process.env.LIVEKIT_URL;
+const API_KEY = process.env.LIVEKIT_API_KEY?.trim();
+const API_SECRET = process.env.LIVEKIT_API_SECRET?.trim();
+const LIVEKIT_URL = process.env.LIVEKIT_URL?.trim();
 
 // don't cache the results
 export const revalidate = 0;
 
 export async function POST(req: Request) {
-  // make an exception for the vercel preview environment
-  if (process.env.NODE_ENV !== 'development' && process.env.IS_VERCEL_PREVIEW !== 'true') {
-    throw new Error(
-      'THIS API ROUTE IS INSECURE. DO NOT USE THIS ROUTE IN PRODUCTION WITHOUT AN AUTHENTICATION LAYER.'
+  // This unauthenticated issuer is for local development ONLY, including previews.
+  if (process.env.NODE_ENV !== 'development') {
+    return new NextResponse(
+      'Token issuance is disabled outside development. Add authentication before production use.',
+      { status: 403, headers: { 'Cache-Control': 'no-store' } }
+    );
+  }
+
+  const missing = [
+    ['LIVEKIT_URL', LIVEKIT_URL],
+    ['LIVEKIT_API_KEY', API_KEY],
+    ['LIVEKIT_API_SECRET', API_SECRET],
+  ]
+    .filter(([, value]) => !value?.trim())
+    .map(([name]) => name);
+  if (missing.length) {
+    return new NextResponse(
+      `Missing server configuration: ${missing.join(', ')}. Set .env.local and restart Next.js.`,
+      {
+        status: 503,
+        headers: { 'Cache-Control': 'no-store' },
+      }
     );
   }
 
@@ -40,16 +59,25 @@ export async function POST(req: Request) {
       throw new Error('LIVEKIT_API_SECRET is not defined');
     }
 
-    // Parse room config from request body.
-    const body = await req.json();
-    const roomConfig = body?.room_config
-      ? RoomConfiguration.fromJson(body.room_config, { ignoreUnknownFields: true })
-      : new RoomConfiguration();
+    // Preserve Session API room settings; dispatch is authoritative on the server.
+    let roomConfig: RoomConfiguration;
+    try {
+      const body = await req.json();
+      roomConfig = body?.room_config
+        ? RoomConfiguration.fromJson(body.room_config, { ignoreUnknownFields: true })
+        : new RoomConfiguration();
+    } catch {
+      return new NextResponse('Invalid token request.', { status: 400 });
+    }
+    const agentName = process.env.AGENT_NAME?.trim();
+    roomConfig.agents = RoomConfiguration.fromJson({
+      agents: agentName ? [{ agentName }] : [],
+    }).agents;
 
     // Generate participant token
     const participantName = 'user';
-    const participantIdentity = `voice_assistant_user_${Math.floor(Math.random() * 10_000)}`;
-    const roomName = `voice_assistant_room_${Math.floor(Math.random() * 10_000)}`;
+    const participantIdentity = `voice_assistant_user_${randomUUID()}`;
+    const roomName = `voice_assistant_room_${randomUUID()}`;
 
     const participantToken = await createParticipantToken(
       { identity: participantIdentity, name: participantName },
@@ -68,11 +96,12 @@ export async function POST(req: Request) {
       'Cache-Control': 'no-store',
     });
     return NextResponse.json(data, { headers });
-  } catch (error) {
-    if (error instanceof Error) {
-      console.error(error);
-      return new NextResponse(error.message, { status: 500 });
-    }
+  } catch {
+    // Never return JWTs, credentials, or raw SDK errors to the browser/logs.
+    console.error('LiveKit token generation failed. Check server configuration.');
+    return new NextResponse('Unable to create a voice session. Check server configuration.', {
+      status: 500,
+    });
   }
 }
 
