@@ -1,64 +1,64 @@
 'use client';
 
-import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
-import { DisconnectReason, type RemoteParticipant, RoomEvent } from 'livekit-client';
+import { useCallback, useEffect, useReducer, useState } from 'react';
 import { useAgent, useSessionContext, useSessionMessages } from '@livekit/components-react';
-import { DEFAULT_USE_CASE, parseUseCaseConfig } from '@/lib/usecase-config';
-import { WORKBENCH_TOPIC, encodeRpcRequest, parseRpcResponse } from '@/lib/workbench/contracts';
+import { controlReducer, useVoiceLifecycle } from './hooks/use-voice-lifecycle';
+import { useWorkbenchSync } from './hooks/use-workbench-sync';
 import { type TimelineEntry } from './panels';
-import {
-  type Command,
-  type ToolActivity,
-  type VoiceResult,
-  deriveVoiceState,
-  mediaErrorMessage,
-  mergeToolActivities,
-  parseWorkerEvent,
-} from './state';
+import { deriveVoiceState, mediaErrorMessage } from './state';
 
-interface ControlState {
-  command: Command;
-  error: string | null;
-  interrupted: boolean;
-}
-type Action =
-  | { type: 'command'; command: Command }
-  | { type: 'error'; message: string }
-  | { type: 'interrupted' }
-  | { type: 'progress' }
-  | { type: 'recovered' }
-  | { type: 'reset' };
-function reducer(state: ControlState, action: Action): ControlState {
-  switch (action.type) {
-    case 'command':
-      return { ...state, command: action.command, error: null };
-    case 'error':
-      return { ...state, command: 'idle', error: action.message };
-    case 'interrupted':
-      return { ...state, interrupted: true };
-    case 'progress':
-      return { ...state, interrupted: false };
-    case 'recovered':
-      return { ...state, error: null };
-    case 'reset':
-      return { command: 'idle', error: null, interrupted: false };
-  }
-}
+// Public presentation facade. Native LiveKit hooks remain the source of truth.
 export function useVoiceWorkbench() {
   const session = useSessionContext();
   const agent = useAgent();
   const { messages } = useSessionMessages();
-  const [control, dispatch] = useReducer(reducer, {
+  const [control, dispatch] = useReducer(controlReducer, {
     command: 'idle',
     error: null,
     interrupted: false,
   });
-  const commandLock = useRef(false);
-  const startAbort = useRef<AbortController | null>(null);
-  const [tools, setTools] = useState<ToolActivity[]>([]);
-  const [results, setResults] = useState<VoiceResult[]>([]);
   const [entries, setEntries] = useState<TimelineEntry[]>([]);
-  const [useCase, setUseCase] = useState(DEFAULT_USE_CASE);
+  const reportError = useCallback(
+    (error: unknown) => dispatch({ type: 'error', message: mediaErrorMessage(error) }),
+    []
+  );
+  const lifecycle = useVoiceLifecycle(session, dispatch, reportError);
+  const synchronization = useWorkbenchSync(
+    session,
+    agent.isConnected ? agent.identity : undefined,
+    agent.attributes['voice.usecase'],
+    dispatch,
+    reportError,
+    lifecycle.invalidateInterruption
+  );
+  const { tools, results, useCase, confirmTool, beginSession } = synchronization;
+  const resetConversation = useCallback(() => {
+    beginSession();
+    setEntries([]);
+  }, [beginSession]);
+  const {
+    start: startSession,
+    cancelStart: cancelSessionStart,
+    end: endSession,
+    interrupt: interruptSession,
+  } = lifecycle;
+  const { invalidate, resynchronize, interruptAgent } = synchronization;
+  const start = useCallback(
+    (textOnly = false) => startSession(textOnly, resetConversation),
+    [startSession, resetConversation]
+  );
+  const cancelStart = useCallback(
+    () => cancelSessionStart(invalidate),
+    [cancelSessionStart, invalidate]
+  );
+  const end = useCallback(
+    () => endSession(invalidate, resynchronize),
+    [endSession, invalidate, resynchronize]
+  );
+  const interrupt = useCallback(
+    () => interruptSession(interruptAgent),
+    [interruptSession, interruptAgent]
+  );
   const state = deriveVoiceState({
     connection: session.connectionState,
     agent: agent.state,
@@ -66,50 +66,6 @@ export function useVoiceWorkbench() {
     executing: tools.some((t) => t.status === 'running'),
     awaitingConfirmation: tools.some((t) => t.status === 'confirmation_required'),
   });
-  const identity = agent.isConnected ? agent.identity : undefined;
-  const useCaseId = agent.attributes['voice.usecase'];
-  useEffect(() => {
-    let cancelled = false;
-    if (!identity || session.connectionState !== 'connected' || !useCaseId) {
-      setUseCase(DEFAULT_USE_CASE);
-      return;
-    }
-    setUseCase({
-      ...DEFAULT_USE_CASE,
-      notice: 'Loading application details from the connected worker.',
-    });
-    const unavailable = () => {
-      if (!cancelled)
-        setUseCase({
-          ...DEFAULT_USE_CASE,
-          notice:
-            'Application details could not be verified. Check the worker configuration before using specialized features.',
-        });
-    };
-    async function load() {
-      try {
-        const raw = await session.room.localParticipant.performRpc({
-          destinationIdentity: identity!,
-          method: 'voice.usecase_config',
-          payload: encodeRpcRequest('voice.usecase_config', {}),
-          responseTimeout: 5000,
-        });
-        const config = parseUseCaseConfig(raw);
-        if (!cancelled && config?.id === useCaseId) setUseCase(config);
-        else if (!cancelled) unavailable();
-      } catch {
-        unavailable();
-      }
-    }
-    void load();
-    return () => {
-      cancelled = true;
-    };
-  }, [identity, useCaseId, session.connectionState, session.room]);
-  const reportError = useCallback(
-    (error: unknown) => dispatch({ type: 'error', message: mediaErrorMessage(error) }),
-    []
-  );
   useEffect(() => {
     dispatch({ type: 'progress' });
     if (agent.state === 'speaking') dispatch({ type: 'recovered' });
@@ -119,166 +75,6 @@ export function useVoiceWorkbench() {
       [...previous, { id: (previous.at(-1)?.id ?? 0) + 1, state, at: Date.now() }].slice(-80)
     );
   }, [state]);
-  useEffect(() => {
-    const onData = (
-      data: Uint8Array,
-      participant?: RemoteParticipant,
-      _kind?: unknown,
-      topic?: string
-    ) => {
-      if (
-        topic !== WORKBENCH_TOPIC ||
-        !identity ||
-        participant?.identity !== identity ||
-        data.byteLength > 16384
-      )
-        return;
-      const event = parseWorkerEvent(new TextDecoder().decode(data));
-      if (event?.type === 'error') dispatch({ type: 'error', message: event.message });
-      if (event?.type === 'interrupted') dispatch({ type: 'interrupted' });
-      if (event?.type === 'tool') setTools((old) => mergeToolActivities(old, event.tool));
-      if (event?.type === 'result')
-        setResults((old) =>
-          [...old.filter((r) => r.id !== event.result.id), event.result].slice(-20)
-        );
-    };
-    const onDisconnected = (reason?: DisconnectReason) => {
-      setTools((old) =>
-        old.map((t) =>
-          ['running', 'confirmation_required', 'selected'].includes(t.status)
-            ? { ...t, status: 'unknown', confirmationId: undefined }
-            : t
-        )
-      );
-      if (reason !== DisconnectReason.CLIENT_INITIATED)
-        dispatch({
-          type: 'error',
-          message:
-            'Session disconnected. Check your connection and worker, then start a new session.',
-        });
-    };
-    session.room
-      .on(RoomEvent.DataReceived, onData)
-      .on(RoomEvent.MediaDevicesError, reportError)
-      .on(RoomEvent.Disconnected, onDisconnected);
-    return () => {
-      session.room
-        .off(RoomEvent.DataReceived, onData)
-        .off(RoomEvent.MediaDevicesError, reportError)
-        .off(RoomEvent.Disconnected, onDisconnected);
-    };
-  }, [identity, session.room, reportError]);
-  const refreshTools = useCallback(async () => {
-    if (!identity || session.connectionState !== 'connected') return;
-    try {
-      const raw = await session.room.localParticipant.performRpc({
-        destinationIdentity: identity,
-        method: 'voice.tools_state',
-        payload: encodeRpcRequest('voice.tools_state', {}),
-        responseTimeout: 5000,
-      });
-      const list = parseRpcResponse('voice.tools_state', raw);
-      if (!list) return;
-      const current: ToolActivity[] = [];
-      for (const item of list) {
-        const event = parseWorkerEvent(JSON.stringify(item));
-        if (event?.type === 'tool') current.push(event.tool);
-      }
-      setTools((old) => current.reduce(mergeToolActivities, old));
-    } catch {
-      /* Older workers may not implement snapshots; live events still work. */
-    }
-  }, [identity, session.room, session.connectionState]);
-  useEffect(() => {
-    void refreshTools();
-  }, [refreshTools]);
-  async function confirmTool(confirmationId: string, approved: boolean) {
-    if (!identity || session.connectionState !== 'connected')
-      throw new Error('Reconnect before answering this confirmation.');
-    const raw = await session.room.localParticipant.performRpc({
-      destinationIdentity: identity,
-      method: 'voice.confirm_tool',
-      payload: encodeRpcRequest('voice.confirm_tool', {
-        confirmation_id: confirmationId,
-        approved,
-      }),
-      responseTimeout: 5000,
-    });
-    if (!parseRpcResponse('voice.confirm_tool', raw))
-      throw new Error('The worker returned an invalid confirmation response.');
-    await refreshTools();
-  }
-  async function start(textOnly = false) {
-    if (commandLock.current) return;
-    commandLock.current = true;
-    const controller = new AbortController();
-    startAbort.current = controller;
-    dispatch({ type: 'reset' });
-    dispatch({ type: 'command', command: 'starting' });
-    setTools([]);
-    setResults([]);
-    setEntries([]);
-    try {
-      await session.prepareConnection();
-      if (controller.signal.aborted) return;
-      await session.start({
-        tracks: { microphone: { enabled: !textOnly } },
-        signal: controller.signal,
-      });
-      dispatch({ type: 'command', command: 'idle' });
-    } catch (error) {
-      await session.room.disconnect().catch(() => undefined);
-      if (!controller.signal.aborted) reportError(error);
-      else dispatch({ type: 'reset' });
-    } finally {
-      commandLock.current = false;
-      startAbort.current = null;
-      if (controller.signal.aborted) dispatch({ type: 'reset' });
-    }
-  }
-  function cancelStart() {
-    startAbort.current?.abort();
-    // Also disconnect if the browser was waiting for a remote agent to join.
-    void session.room.disconnect().catch(() => undefined);
-  }
-  async function end() {
-    if (commandLock.current) return;
-    commandLock.current = true;
-    dispatch({ type: 'command', command: 'ending' });
-    try {
-      await session.end();
-      dispatch({ type: 'reset' });
-    } catch (error) {
-      reportError(error);
-    } finally {
-      commandLock.current = false;
-    }
-  }
-  async function interrupt() {
-    if (commandLock.current || !identity || !session.isConnected) return;
-    commandLock.current = true;
-    dispatch({ type: 'command', command: 'interrupting' });
-    try {
-      const raw = await session.room.localParticipant.performRpc({
-        destinationIdentity: identity,
-        method: 'voice.interrupt',
-        payload: encodeRpcRequest('voice.interrupt', {}),
-        responseTimeout: 5000,
-      });
-      if (!parseRpcResponse('voice.interrupt', raw))
-        throw new Error('Invalid interruption response.');
-      dispatch({ type: 'interrupted' });
-      dispatch({ type: 'command', command: 'idle' });
-    } catch {
-      dispatch({
-        type: 'error',
-        message:
-          'The worker could not confirm interruption. You can end the session to stop playback.',
-      });
-    } finally {
-      commandLock.current = false;
-    }
-  }
   return {
     session,
     agent,

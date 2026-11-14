@@ -16,8 +16,12 @@ Agents UI remains available; there is no separate audio, chat or WebRTC stack.
   reusable presentation components. ResultCard renders plain text, not HTML.
   LanguageSelector accepts verified options and an application-provided callback.
 - `state.ts`: pure, testable state mapping and bounded worker-event validation.
-- `use-voice-workbench.ts`: connects native hooks/events to the state model and
-  serializes start/end/interrupt commands, with abortable session startup.
+- `use-voice-workbench.ts`: public facade, native state mapping and bounded timeline.
+- `hooks/use-voice-lifecycle.ts`: serialized commands, startup cancellation and
+  lifecycle error handling, using the existing LiveKit session methods.
+- `hooks/use-workbench-sync.ts`: generation-scoped room listeners, snapshots,
+  confirmation/interruption RPC and verified public application configuration.
+  See [frontend lifecycle refactoring](frontend-session-lifecycle.md).
 - `backend/app/services/workbench.py`: authenticated interruption RPC, actual
   tool/interruption event forwarding, human confirmation RPC and language metadata.
   No activity or results are fabricated. See [tool orchestration](tool-orchestration.md).
