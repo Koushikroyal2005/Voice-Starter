@@ -7,6 +7,7 @@ from livekit.agents import AgentServer, JobContext, cli
 from app.agents.demo import DemoAgent
 from app.config.settings import ConfigurationError, load_settings
 from app.providers.pipeline import create_session
+from app.providers.registry import ProviderError
 
 
 async def voice_session(ctx: JobContext) -> None:
@@ -45,5 +46,5 @@ def create_server() -> AgentServer:
 if __name__ == "__main__":
     try:
         cli.run_app(create_server())
-    except ConfigurationError as error:
+    except (ConfigurationError, ProviderError) as error:
         raise SystemExit(f"Configuration error: {error}") from None

@@ -20,7 +20,7 @@ def test_defaults_and_secrets_hidden():
     settings = Settings.from_env(valid_env())
     assert settings.agent_name == ""
     assert settings.instructions == DEFAULT_INSTRUCTIONS
-    assert settings.stt_model == "nova-3"
+    assert settings.stt.model == "nova-3"
     assert "test-secret" not in repr(settings)
     assert "test-openai" not in repr(settings)
 
@@ -53,8 +53,8 @@ def test_custom_config_and_blank_defaults():
     )
     assert settings.agent_name == "demo"
     assert settings.instructions == "Be concise."
-    assert settings.llm_model == "custom"
-    assert settings.stt_model == "nova-3"
+    assert settings.llm.model == "custom"
+    assert settings.stt.model == "nova-3"
 
 
 @pytest.mark.parametrize(

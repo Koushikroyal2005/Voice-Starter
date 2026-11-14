@@ -1,131 +1,208 @@
-# Python voice backend
+# Configurable LiveKit voice backend
 
-Single LiveKit agent using real provider plugins: Deepgram Nova-3 STT →
-OpenAI-compatible Chat Completions LLM (default `gpt-4.1-mini`) → Cartesia Sonic-3
-TTS. Silero VAD supplies local speech boundaries and interruption detection.
-Python 3.13 is pinned for Windows; `uv.lock` records resolved dependencies.
+Python 3.13 / LiveKit Agents 1.8.12. One agent, one configured STT → LLM → TTS
+pipeline. All provider credentials stay in `backend/.env` or process environment.
+The existing Next.js frontend is unchanged.
 
-## Windows PowerShell
+## Windows setup
 
-From the repository root:
+From the repository root in PowerShell:
 
 ```powershell
 winget install --id astral-sh.uv --exact
-# Reopen PowerShell after installation if uv is not on PATH.
+# Reopen PowerShell if uv was newly installed.
 cd backend
 uv python install 3.13
 uv sync --locked
-Copy-Item .env.example .env
+Copy-Item .env.example .env  # Only when .env does not already exist.
 notepad .env
-# Fill in real credentials, save, then download the local speech model:
+# Fill credentials, save, and prepare local model assets:
 uv run python -m livekit.agents download-files
 uv run python -m app.main dev
 ```
 
-No virtual-environment activation or PowerShell execution-policy change is needed.
-`uv sync --locked` installs runtime and development dependencies into `.venv`.
-The SDK module's `download-files` command prepares local model assets; it does not
-require provider credentials. Run `uv run python -m app.main start` for the
-SDK's production startup mode (deployment hardening is separate).
+No environment activation or execution-policy change is needed. Production SDK
+startup is `uv run python -m app.main start`.
 
-## Environment
+## Configuration
 
-Copy `.env.example` to **backend/.env**. The loader uses that exact path regardless
-of the current directory. Process environment variables override the file.
-Secrets are never placed in source or printed by configuration validation.
-`.env`, environment variants, `.venv`, and caches are ignored by Git.
+Configuration uses environment variables (no YAML loader is needed). Process
+variables override `backend/.env`. Optional blank values use provider defaults.
+Restart the worker after changes. Never use NEXT_PUBLIC_ for credentials.
+`backend/.env` and environment variants are ignored by Git.
 
-Required: `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`,
-`DEEPGRAM_API_KEY`, `OPENAI_API_KEY`, `CARTESIA_API_KEY`.
-`OPENAI_API_KEY` may hold the key for a compatible provider when `LLM_BASE_URL`
-and `LLM_MODEL` are set accordingly. Compatibility of a third-party endpoint
-must be verified with that endpoint; the initial documented combination uses OpenAI.
+Always required: `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`.
+Default selection:
 
-Optional: `AGENT_NAME` (blank for automatic dispatch), `STT_MODEL`,
-`STT_LANGUAGE`, `LLM_MODEL`, `LLM_BASE_URL`, `TTS_MODEL`, `TTS_VOICE`,
-`AGENT_INSTRUCTIONS`. Defaults are shown in `.env.example`. Blank optional values
-use defaults. Customize the demo instructions in `app/agents/instructions.py`
-or set `AGENT_INSTRUCTIONS` in the environment.
+```dotenv
+STT_PROVIDER=deepgram
+LLM_PROVIDER=openai_compatible
+TTS_PROVIDER=cartesia
+DEEPGRAM_API_KEY=your-key
+LLM_API_KEY=your-key
+CARTESIA_API_KEY=your-key
+LLM_BASE_URL=https://api.openai.com/v1
+LLM_MODEL=gpt-4.1-mini
+```
 
-## Connect the existing frontend
+Only selected provider credentials are required:
 
-Use the same LiveKit project for the frontend and backend. In the repository's
-existing root `.env.local`, configure `LIVEKIT_URL`, `LIVEKIT_API_KEY`, and
-`LIVEKIT_API_SECRET`; leave `LIVEKIT_TOKEN_SERVER_ID` blank to use `/api/token`.
-The frontend otherwise prioritizes its development token server or falls back to
-the LiveKit homepage demo, which will not connect to this worker.
+- STT `deepgram`: `DEEPGRAM_API_KEY`; default `nova-3`.
+- STT `assemblyai`: `ASSEMBLYAI_API_KEY`; default `universal-3-6-pro`.
+- STT `whisper`: `OPENAI_API_KEY`; model `whisper-1` via OpenAI's REST API.
+- LLM `openai_compatible`: `LLM_API_KEY`; legacy `OPENAI_API_KEY` fallback.
+- LLM `gemini`: `GOOGLE_API_KEY`; default `gemini-3.5-flash` via Google API.
+- TTS `cartesia`: `CARTESIA_API_KEY`; default `sonic-3`.
+- TTS `elevenlabs`: `ELEVEN_API_KEY`; default `eleven_multilingual_v2`.
+- TTS `murf`: `MURF_API_KEY`; default `FALCON` using the official streaming plugin.
 
-Leave `AGENT_NAME` blank in both environments for automatic dispatch. For explicit
-dispatch, set the same nonempty name (for example `voice-starter`) in both files
-and restart both processes. The frontend's Session API already sends `room_config`
-and its token route preserves it. Do not run competing automatic-dispatch workers
-for this demo in the same project.
+`STT_MODEL`, `LLM_MODEL`, `TTS_MODEL`, and `TTS_VOICE` override the registry's
+defaults. Clear old model and voice overrides when switching vendors. Voice IDs
+must be accessible to your account. `STT_LANGUAGE` defaults to `en`; AssemblyAI
+Universal-3 Pro receives it as a language hint. Other AssemblyAI streaming models
+infer language from their model selection. `STT_BASE_URL` is supported only for
+the batch Whisper REST integration; compatibility of other Whisper servers must
+be tested. Gemini uses its native plugin, so clear `LLM_BASE_URL` when selecting it.
+These adapters do not expose TTS_BASE_URL; unsupported URL settings raise errors.
 
-In a second PowerShell window, use the frontend's existing setup:
+`AGENT_INSTRUCTIONS` overrides `app/agents/instructions.py`. `AGENT_NAME` controls
+dispatch. Blank uses automatic dispatch; for named dispatch, use the same name in
+the frontend's root `.env.local` and backend `.env`.
+
+## NVIDIA NIM, vLLM, and compatible LLM endpoints
+
+Use the existing `openai_compatible` provider, with no changes to the agent:
+
+```dotenv
+LLM_PROVIDER=openai_compatible
+LLM_BASE_URL=http://localhost:8000/v1
+LLM_API_KEY=your-endpoint-key
+LLM_MODEL=your-served-model-name
+```
+
+For hosted NIM, use the base URL, API key, and exact model ID supplied by your
+deployment. A custom base URL requires an explicit model; there is no assumption
+that it serves the default OpenAI model. A local endpoint that has authentication
+disabled still needs a nonempty client key (for example `not-used`) because the
+OpenAI client expects one. Set this deliberately; no key is fabricated by code.
+
+The endpoint must implement streaming Chat Completions. Model names, chat
+templates, tool parsers, tool calling, languages, usage chunks, and cancellation
+semantics depend on the deployed server/model. Merely sharing the OpenAI API
+format does not guarantee all of these. Other compatible services can use the
+same path after their endpoint behavior is verified.
+
+## Capabilities and batch STT
+
+`app/providers/registry.py` records native streaming, interim transcription,
+provider turn detection, multilingual support, local cancellation, and tool
+calling. `None` means model/endpoint dependent or not applicable, never a promise
+of support. The metadata describes these adapters, not every product from a vendor.
+`registry.require(category, provider, capability)` rejects false or unknown
+capabilities. Native SDK capabilities are checked when an interim requirement is set.
+
+- Deepgram Nova and AssemblyAI use native streaming STT and interim results.
+- AssemblyAI exposes provider end-of-turn detection; set `TURN_DETECTION=stt`
+  to use it. Universal-3 Pro's silence setting is explicitly set to 1000 ms, and
+  the session avoids additive minimum endpointing delay in STT mode.
+- The current Nova adapter uses `TURN_DETECTION=vad`; it does not claim semantic
+  turn detection from Deepgram Flux. Flux would need a separate verified adapter.
+- Whisper is **batch-only**. Set `STT_ALLOW_BATCH=true` to permit LiveKit's
+  `StreamAdapter` with Silero VAD. It sends completed utterances for recognition,
+  with no interim transcripts and added utterance latency. The registry continues
+  to report native `streaming=False`; the adapter does not change that fact.
+- `STT_REQUIRE_INTERIM=true` rejects Whisper. `TURN_DETECTION=stt` also rejects
+  providers that do not guarantee it. Default turn detection is `vad`.
+- Cartesia, ElevenLabs, and Murf use native streaming TTS. Multilingual behavior
+  depends on the selected model, voice, and language; it is not a universal flag.
+- Native LLM objects retain tool-call chunks. Whether a selected model/endpoint
+  can correctly generate them remains model dependent. No tools are registered yet.
+- Cancellation means local stream/task cancellation via LiveKit APIs. It does
+  not promise that remote inference or billing immediately stops.
+
+The SDK's own STT/LLM/TTS interfaces, event emitters, retries, metrics, and stream
+lifecycles are preserved. There is no custom buffering or text-only wrapper.
+
+## Frontend connection
+
+Use the same LiveKit project in frontend and backend. Root `.env.local` needs
+`LIVEKIT_URL`, `LIVEKIT_API_KEY`, and `LIVEKIT_API_SECRET`. Clear
+`LIVEKIT_TOKEN_SERVER_ID` to use the existing `/api/token`; otherwise a development
+token server takes precedence. With no LiveKit configuration the frontend connects
+to the public homepage demo, not this backend. The existing frontend already
+preserves `room_config` for named agent dispatch. Restart both after configuration.
+
+In a second PowerShell window, from the repository root:
 
 ```powershell
-# From the repository root; pnpm 9.15.9 and Node 24 are the frontend requirements.
+# Frontend requires Node 24 and pnpm 9.15.9.
 pnpm install --frozen-lockfile
 pnpm dev
 ```
 
-Open http://localhost:3000, click Start call, allow microphone access, and say a
-short question. Check that the worker accepts the job, the agent greets you,
-speech receives a relevant spoken response, the transcript updates, interruptions
-work, and leaving ends the session. This is a manual, billable integration check
-requiring valid accounts and microphone/network access. Unit tests do not prove
-STT, LLM, TTS, room dispatch, or audible playback work end to end.
+Open http://localhost:3000, start a call, allow the microphone, ask a short
+question, and check worker dispatch, transcription, a relevant spoken answer,
+interruption behavior, and disconnect. Provider credentials and network access
+are required; actual inference can incur charges.
 
 ## Checks
 
 ```powershell
-uv run pytest
+uv run pytest -q
 uv run ruff check .
 uv run ruff format --check .
 ```
 
-Tests use synthetic credentials and never call provider APIs. They cover missing
-credentials, URL validation, defaults, overrides, secret-safe representation,
-and loading the backend environment file without overriding process variables.
-The SDK wiring tests additionally construct the real provider objects, load Silero,
-and verify callback serialization. These are local checks, not voice-call tests.
+Tests cover registration, duplicate/unsupported selection, defaults, credentials,
+URL validation, capabilities, real plugin construction, native event interfaces,
+session composition, and Windows callback serialization. They use synthetic keys
+and never make inference requests. End-to-end voice and provider account access
+must be verified separately with real credentials.
 
-Implementation verification on Windows with Python 3.13.14 and Agents 1.8.12:
-configuration tests passed (20); Ruff lint and formatting passed; CLI help,
-missing-credential errors, SDK constructor signatures, and model preparation
-were checked. An initial full run reached 21 passed with one test-cleanup error
-(calling a nonexistent Silero VAD `aclose` method). That cleanup was corrected;
-the final full rerun was not completed because permission for running native SDK
-tests outside the sandbox was declined. Run the commands above locally to confirm.
-No real provider credentials were available, so end-to-end voice is unverified.
+## Structure and extension pattern
 
-## Files
+`app/providers/stt/`, `llm/`, and `tts/` contain thin native-plugin constructors.
+`registry.py` is the explicit supported-provider catalog, with defaults,
+credential variable names, capability metadata, builder paths, and official links.
+`factory.py` resolves that catalog, validates the interface, and constructs the
+selected plugin. `pipeline.py` composes vendor-independent objects in AgentSession.
+`config/settings.py` resolves environment settings before accepting a job.
+`agents/` holds behavior; `main.py` registers the single worker. The reserved
+`tools/` and `services/` packages still start no extra components.
 
-- `app/main.py`: SDK CLI entrypoint, worker registration and session lifecycle.
-- `app/agents/demo.py`: single Agent subclass.
-- `app/agents/instructions.py`: safe, concise demo prompt.
-- `app/config/settings.py`: dotenv loading, environment parsing and validation.
-- `app/providers/pipeline.py`: STT, LLM, TTS and VAD construction.
-- `app/tools/__init__.py`, `app/services/__init__.py`: reserved namespaces only.
-- `tests/test_settings.py`: credential-free configuration tests.
-- `tests/test_sdk_wiring.py`: real SDK construction and Windows callback
-  serialization checks, without calling provider APIs.
-- Package `__init__.py` files: Python package markers and module descriptions.
-- `.env.example`: placeholders and optional settings.
-- `.gitignore`: backend-specific secrets, environments and caches.
-- `.python-version`: Python 3.13 selection.
-- `pyproject.toml`: dependencies, development tools and check configuration.
-- `uv.lock`: reproducible dependency resolution; generated by uv.
+To add a completely new provider:
+
+1. Verify an official maintained LiveKit plugin's installed signatures, supported
+   models, native streaming/events and limitations. Add and pin its plugin dependency,
+   regenerate `uv.lock` with `uv sync`, and test installation on Windows.
+2. Add a constructor to the appropriate category package (or a dedicated module).
+   Accept `ProviderConfig` and return the native `STT`, `LLM`, or `TTS` interface.
+   If no plugin exists, implement the LiveKit base class and its stream protocol,
+   including close/cancellation, metrics and event behavior, with focused tests.
+3. Register a `ProviderSpec` with a unique category/name, builder import path,
+   backend credential variable, defaults and honest capabilities. No config-supplied
+   arbitrary Python import paths are accepted.
+4. Add explicit validation for provider-specific restrictions. Do not silently
+   ignore unsupported settings or convert batch recognition into a streaming claim.
+5. Add selection, missing-credential, capability, constructor and stream lifecycle
+   tests. Add an opt-in real-provider smoke test where credentials are available.
+6. Document configuration and limitations here and in `.env.example`. Agent and
+   business logic should require no changes.
+
+This uses a registry and factory with dependency injection into LiveKit's session,
+and thin adapters around existing plugins. It deliberately avoids inventing a
+parallel provider SDK or replacing LiveKit's event and transport abstractions.
 
 ## Official references
 
-- [Python starter](https://github.com/livekit-examples/agent-starter-python)
-- [Deepgram plugin](https://docs.livekit.io/agents/models/stt/deepgram/)
-- [OpenAI plugin and compatible endpoints](https://docs.livekit.io/agents/models/llm/openai/)
-- [Cartesia plugin](https://docs.livekit.io/agents/models/tts/cartesia/)
-- [Agent sessions](https://docs.livekit.io/agents/logic/sessions/)
-- [Agent dispatch](https://docs.livekit.io/agents/server/agent-dispatch/)
-
-Implementation follows `AgentServer`, `rtc_session`, `AgentSession`, `Agent`, and
-`cli.run_app` conventions. Chat Completions is selected for replaceable compatible
-LLM endpoints. No MCP, business API, database, cache, or extra agent is started.
+- [LiveKit Python starter](https://github.com/livekit-examples/agent-starter-python)
+- [Deepgram](https://docs.livekit.io/agents/models/stt/deepgram/)
+- [AssemblyAI](https://docs.livekit.io/agents/models/stt/assemblyai/)
+- [OpenAI STT / Whisper](https://docs.livekit.io/agents/models/stt/openai/)
+- [OpenAI-compatible LLM plugin](https://docs.livekit.io/agents/models/llm/openai/)
+- [Gemini](https://docs.livekit.io/agents/models/llm/gemini/)
+- [Cartesia](https://docs.livekit.io/agents/models/tts/cartesia/)
+- [ElevenLabs](https://docs.livekit.io/agents/models/tts/elevenlabs/)
+- [Murf](https://docs.livekit.io/agents/models/tts/murf/)
+- [NIM Chat Completions](https://docs.nvidia.com/nim/large-language-models/1.12.0/api-reference.html)
+- [vLLM serving](https://docs.vllm.ai/en/stable/serving/online_serving/)

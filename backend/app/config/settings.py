@@ -1,4 +1,4 @@
-"""Read environment settings without exposing secret values in errors or repr."""
+"""Environment-only configuration; credentials never enter frontend code."""
 
 import os
 from collections.abc import Mapping
@@ -9,6 +9,7 @@ from urllib.parse import urlsplit
 from dotenv import load_dotenv
 
 from app.agents.instructions import DEFAULT_INSTRUCTIONS
+from app.providers.registry import Category, ProviderError, registry
 
 ENV_FILE = Path(__file__).resolve().parents[2] / ".env"
 
@@ -18,77 +19,162 @@ class ConfigurationError(ValueError):
 
 
 @dataclass(frozen=True)
+class ProviderConfig:
+    category: Category
+    provider: str
+    model: str
+    api_key: str = field(repr=False)
+    base_url: str = ""
+    language: str = "en"
+    voice: str = ""
+
+
+def validate_url(name: str, value: str, schemes: set[str]) -> None:
+    try:
+        parsed = urlsplit(value)
+        valid = (
+            parsed.scheme in schemes
+            and parsed.hostname
+            and not parsed.username
+            and not parsed.password
+            and not parsed.query
+            and not parsed.fragment
+        )
+        _ = parsed.port
+    except ValueError:
+        valid = False
+    if not valid:
+        raise ConfigurationError(
+            f"{name} must be a valid URL without credentials/query"
+        )
+
+
+def boolean(values: Mapping[str, str], name: str, default: bool = False) -> bool:
+    raw = values.get(name, "").strip().lower()
+    if not raw:
+        return default
+    if raw not in ("true", "false"):
+        raise ConfigurationError(f"{name} must be true or false")
+    return raw == "true"
+
+
+@dataclass(frozen=True)
 class Settings:
     livekit_url: str
     livekit_api_key: str = field(repr=False)
     livekit_api_secret: str = field(repr=False)
-    deepgram_api_key: str = field(repr=False)
-    openai_api_key: str = field(repr=False)
-    cartesia_api_key: str = field(repr=False)
+    stt: ProviderConfig
+    llm: ProviderConfig
+    tts: ProviderConfig
     agent_name: str = ""
-    stt_model: str = "nova-3"
-    stt_language: str = "en"
-    llm_model: str = "gpt-4.1-mini"
-    llm_base_url: str = "https://api.openai.com/v1"
-    tts_model: str = "sonic-3"
-    tts_voice: str = "f786b574-daa5-4673-aa0c-cbe3e8534c02"
     instructions: str = DEFAULT_INSTRUCTIONS
+    allow_batch_stt: bool = False
+    require_interim: bool = False
+    turn_detection: str = "vad"
 
     @classmethod
     def from_env(cls, env: Mapping[str, str] | None = None) -> "Settings":
         values = os.environ if env is None else env
-        required = (
-            "LIVEKIT_URL",
-            "LIVEKIT_API_KEY",
-            "LIVEKIT_API_SECRET",
-            "DEEPGRAM_API_KEY",
-            "OPENAI_API_KEY",
-            "CARTESIA_API_KEY",
-        )
-        missing = [key for key in required if not values.get(key, "").strip()]
+
+        def optional(key: str, default: str = "") -> str:
+            return values.get(key, "").strip() or default
+
+        missing = [
+            k
+            for k in ("LIVEKIT_URL", "LIVEKIT_API_KEY", "LIVEKIT_API_SECRET")
+            if not optional(k)
+        ]
+        configs = {}
+        for category, default in (
+            ("stt", "deepgram"),
+            ("llm", "openai_compatible"),
+            ("tts", "cartesia"),
+        ):
+            prefix = category.upper()
+            name = optional(f"{prefix}_PROVIDER", default).lower()
+            try:
+                spec = registry.get(category, name)
+            except ProviderError as error:
+                raise ConfigurationError(str(error)) from None
+            key = optional(spec.api_key_env)
+            if name == "openai_compatible":
+                key = key or optional("OPENAI_API_KEY")
+            if not key:
+                missing.append(
+                    "LLM_API_KEY (or OPENAI_API_KEY)"
+                    if name == "openai_compatible"
+                    else spec.api_key_env
+                )
+            model = optional(f"{prefix}_MODEL", spec.model)
+            if spec.models and model not in spec.models:
+                raise ConfigurationError(
+                    f"{prefix}_MODEL is unsupported for {name}; "
+                    f"supported: {', '.join(spec.models)}"
+                )
+            base_url = optional(f"{prefix}_BASE_URL", spec.base_url)
+            if category == "llm" and name == "gemini" and base_url:
+                raise ConfigurationError("LLM_BASE_URL is not supported for gemini")
+            if category == "stt" and name != "whisper" and base_url:
+                raise ConfigurationError(f"STT_BASE_URL is not supported for {name}")
+            if category == "tts" and base_url:
+                raise ConfigurationError(
+                    "TTS_BASE_URL is not configured by these adapters"
+                )
+            if base_url:
+                validate_url(f"{prefix}_BASE_URL", base_url, {"http", "https"})
+            if category == "llm" and name == "openai_compatible":
+                if base_url.rstrip("/") != spec.base_url and not optional("LLM_MODEL"):
+                    raise ConfigurationError(
+                        "LLM_MODEL is required for a custom LLM_BASE_URL"
+                    )
+            configs[category] = ProviderConfig(
+                category=category,
+                provider=name,
+                model=model,
+                api_key=key,
+                base_url=base_url,
+                language=optional(f"{prefix}_LANGUAGE", "en"),
+                voice=optional(f"{prefix}_VOICE", spec.voice),
+            )
         if missing:
             raise ConfigurationError(
                 "Missing required environment variables: " + ", ".join(missing)
             )
-
-        def optional(key: str, default: str) -> str:
-            return values.get(key, "").strip() or default
-
-        url = values["LIVEKIT_URL"].strip()
-        base_url = optional("LLM_BASE_URL", "https://api.openai.com/v1")
-        for name, value, schemes in (
-            ("LIVEKIT_URL", url, {"ws", "wss"}),
-            ("LLM_BASE_URL", base_url, {"http", "https"}),
-        ):
-            parsed = urlsplit(value)
-            if (
-                parsed.scheme not in schemes
-                or not parsed.hostname
-                or parsed.username
-                or parsed.password
-            ):
-                raise ConfigurationError(
-                    f"{name} must be a valid URL without embedded credentials"
-                )
+        validate_url("LIVEKIT_URL", optional("LIVEKIT_URL"), {"ws", "wss"})
+        allow_batch = boolean(values, "STT_ALLOW_BATCH")
+        require_interim = boolean(values, "STT_REQUIRE_INTERIM")
+        turn_detection = optional("TURN_DETECTION", "vad")
+        if turn_detection not in ("vad", "stt"):
+            raise ConfigurationError("TURN_DETECTION must be vad or stt")
+        caps = registry.get("stt", configs["stt"].provider).capabilities
+        if not caps.streaming and not allow_batch:
+            raise ConfigurationError(
+                "Batch STT requires STT_ALLOW_BATCH=true; no live interim results"
+            )
+        if require_interim and caps.interim_transcription is not True:
+            raise ConfigurationError(
+                "Selected STT does not support interim transcription"
+            )
+        if turn_detection == "stt" and caps.turn_detection is not True:
+            raise ConfigurationError(
+                "Selected STT does not support provider turn detection; use vad"
+            )
         return cls(
-            livekit_url=url,
-            livekit_api_key=values["LIVEKIT_API_KEY"].strip(),
-            livekit_api_secret=values["LIVEKIT_API_SECRET"].strip(),
-            deepgram_api_key=values["DEEPGRAM_API_KEY"].strip(),
-            openai_api_key=values["OPENAI_API_KEY"].strip(),
-            cartesia_api_key=values["CARTESIA_API_KEY"].strip(),
-            agent_name=values.get("AGENT_NAME", "").strip(),
-            stt_model=optional("STT_MODEL", "nova-3"),
-            stt_language=optional("STT_LANGUAGE", "en"),
-            llm_model=optional("LLM_MODEL", "gpt-4.1-mini"),
-            llm_base_url=base_url,
-            tts_model=optional("TTS_MODEL", "sonic-3"),
-            tts_voice=optional("TTS_VOICE", cls.tts_voice),
+            livekit_url=optional("LIVEKIT_URL"),
+            livekit_api_key=optional("LIVEKIT_API_KEY"),
+            livekit_api_secret=optional("LIVEKIT_API_SECRET"),
+            stt=configs["stt"],
+            llm=configs["llm"],
+            tts=configs["tts"],
+            agent_name=optional("AGENT_NAME"),
             instructions=optional("AGENT_INSTRUCTIONS", DEFAULT_INSTRUCTIONS),
+            allow_batch_stt=allow_batch,
+            require_interim=require_interim,
+            turn_detection=turn_detection,
         )
 
 
 def load_settings() -> Settings:
-    """Load backend/.env; existing process environment always takes precedence."""
+    """Process environment overrides backend/.env."""
     load_dotenv(ENV_FILE, override=False)
     return Settings.from_env()
