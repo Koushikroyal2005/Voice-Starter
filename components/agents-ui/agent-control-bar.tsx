@@ -69,7 +69,8 @@ interface AgentChatInputProps {
 
 function AgentChatInput({ chatOpen, onSend = async () => {}, className }: AgentChatInputProps) {
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const [isSending, setIsSending] = useState(false);
+  const [sendState, setSendState] = useState<'idle' | 'sending' | 'error'>('idle');
+  const isSending = sendState === 'sending';
   const [message, setMessage] = useState<string>('');
   const isDisabled = isSending || message.trim().length === 0;
 
@@ -79,13 +80,12 @@ function AgentChatInput({ chatOpen, onSend = async () => {}, className }: AgentC
     }
 
     try {
-      setIsSending(true);
+      setSendState('sending');
       await onSend(message.trim());
       setMessage('');
-    } catch (error) {
-      console.error(error);
-    } finally {
-      setIsSending(false);
+      setSendState('idle');
+    } catch {
+      setSendState('error');
     }
   };
 
@@ -102,14 +102,22 @@ function AgentChatInput({ chatOpen, onSend = async () => {}, className }: AgentC
   };
 
   useEffect(() => {
-    if (chatOpen) return;
+    if (!chatOpen) return;
     // when not disabled refocus on input
     inputRef.current?.focus();
   }, [chatOpen]);
 
   return (
-    <div className={cn('mb-3 flex grow items-end gap-2 rounded-md pl-1 text-sm', className)}>
+    <div
+      className={cn('mb-3 flex grow flex-wrap items-end gap-2 rounded-md pl-1 text-sm', className)}
+    >
+      {sendState === 'error' && (
+        <p role="alert" className="text-destructive w-full">
+          Message not sent. Check the connection and try again.
+        </p>
+      )}
       <textarea
+        aria-label="Message to agent"
         autoFocus
         ref={inputRef}
         value={message}
@@ -125,6 +133,7 @@ function AgentChatInput({ chatOpen, onSend = async () => {}, className }: AgentC
         disabled={isDisabled}
         variant={isDisabled ? 'secondary' : 'default'}
         title={isSending ? 'Sending...' : 'Send'}
+        aria-label={isSending ? 'Sending message' : 'Send message'}
         onClick={handleButtonClick}
         className="self-end disabled:cursor-not-allowed"
       >

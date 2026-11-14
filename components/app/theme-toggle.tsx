@@ -19,7 +19,12 @@ export function ThemeToggle({ className }: ThemeToggleProps) {
       )}
     >
       <span className="sr-only">Color scheme toggle</span>
-      <button type="button" onClick={() => setTheme('dark')} className="cursor-pointer p-1 pl-1.5">
+      <button
+        type="button"
+        aria-pressed={theme === 'dark'}
+        onClick={() => setTheme('dark')}
+        className="focus-visible:ring-ring min-h-11 min-w-11 cursor-pointer p-3 focus-visible:ring-2 focus-visible:ring-inset"
+      >
         <span className="sr-only">Enable dark color scheme</span>
         <MoonIcon
           suppressHydrationWarning
@@ -30,8 +35,9 @@ export function ThemeToggle({ className }: ThemeToggleProps) {
       </button>
       <button
         type="button"
+        aria-pressed={theme === 'light'}
         onClick={() => setTheme('light')}
-        className="cursor-pointer px-1.5 py-1"
+        className="focus-visible:ring-ring min-h-11 min-w-11 cursor-pointer p-3 focus-visible:ring-2 focus-visible:ring-inset"
       >
         <span className="sr-only">Enable light color scheme</span>
         <SunIcon
@@ -43,8 +49,9 @@ export function ThemeToggle({ className }: ThemeToggleProps) {
       </button>
       <button
         type="button"
+        aria-pressed={theme === 'system'}
         onClick={() => setTheme('system')}
-        className="cursor-pointer p-1 pr-1.5"
+        className="focus-visible:ring-ring min-h-11 min-w-11 cursor-pointer p-3 focus-visible:ring-2 focus-visible:ring-inset"
       >
         <span className="sr-only">Enable system color scheme</span>
         <MonitorIcon

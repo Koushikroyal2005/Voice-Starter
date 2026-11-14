@@ -133,6 +133,14 @@ export function AgentChatTranscript({
                         variant={isUser ? 'secondary' : 'ghost'}
                       >
                         <BubbleContent>
+                          <p className="text-muted-foreground mb-1 text-xs">
+                            {isUser ? 'You' : 'Agent'} ·{' '}
+                            {receivedMessage.attributes?.['lk.transcription_final'] === 'false'
+                              ? 'Live · partial'
+                              : receivedMessage.type === 'chatMessage'
+                                ? 'Text'
+                                : 'Final'}
+                          </p>
                           <Streamdown>{message}</Streamdown>
                         </BubbleContent>
                       </Bubble>

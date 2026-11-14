@@ -9,6 +9,7 @@ from app.agents.demo import DemoAgent
 from app.config.settings import ConfigurationError, load_settings
 from app.providers.pipeline import create_session
 from app.providers.registry import ProviderError
+from app.services.workbench import install_workbench
 
 logger = logging.getLogger("voice-starter")
 
@@ -29,6 +30,7 @@ async def voice_session(ctx: JobContext) -> None:
         room_options=room_io.RoomOptions(close_on_disconnect=True),
     )
     await ctx.connect()
+    await install_workbench(ctx, session, config.stt.language)
     await session.generate_reply(
         instructions="Greet the user briefly and ask what they would like to try."
     )

@@ -10,6 +10,8 @@
     "build": "next build",
     "start": "next start",
     "test:token": "node --test tests/token-route.test.cjs",
+    "test:voice": "node --test tests/voice-state.test.cjs",
+    "test": "node --test tests/*.test.cjs",
     "lint": "next lint",
     "format": "prettier --write .",
     "format:check": "prettier --check .",

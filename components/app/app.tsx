@@ -8,14 +8,12 @@ import { AgentSessionProvider } from '@/components/agents-ui/agent-session-provi
 import { StartAudioButton } from '@/components/agents-ui/start-audio-button';
 import { ViewController } from '@/components/app/view-controller';
 import { Toaster } from '@/components/ui/sonner';
-import { useAgentErrors } from '@/hooks/useAgentErrors';
 import { useDebugMode } from '@/hooks/useDebug';
 
 const IN_DEVELOPMENT = process.env.NODE_ENV !== 'production';
 
 function AppSetup() {
   useDebugMode({ enabled: IN_DEVELOPMENT });
-  useAgentErrors();
 
   return null;
 }
@@ -34,7 +32,7 @@ export function App({ tokenEndpoint, agentName, isVideoInputSupported }: AppProp
   return (
     <AgentSessionProvider session={session}>
       <AppSetup />
-      <main className="grid h-svh grid-cols-1 place-content-center">
+      <main className="bg-background min-h-svh w-full">
         <ViewController isVideoInputSupported={isVideoInputSupported} />
       </main>
       <StartAudioButton label="Start Audio" />

@@ -20,9 +20,14 @@ def test_session_closes_job_and_uses_client_disconnect_cleanup(monkeypatch):
         room=SimpleNamespace(name="test-room"), connect=AsyncMock(), shutdown=Mock()
     )
     monkeypatch.setattr(
-        main, "load_settings", lambda: SimpleNamespace(instructions="Demo")
+        main,
+        "load_settings",
+        lambda: SimpleNamespace(
+            instructions="Demo", stt=SimpleNamespace(language="en")
+        ),
     )
     monkeypatch.setattr(main, "create_session", lambda _: session)
+    monkeypatch.setattr(main, "install_workbench", AsyncMock())
     asyncio.run(main.voice_session(ctx))
     assert session.start.call_args.kwargs["room"] is ctx.room
     assert session.start.call_args.kwargs["room_options"].close_on_disconnect is True

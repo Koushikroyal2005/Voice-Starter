@@ -184,3 +184,6 @@ existing Google font requires network access during a clean build.
 
 See [backend/README.md](backend/README.md) for provider selection, batch Whisper
 limitations, compatible NIM/vLLM endpoints, and adding new providers.
+
+See [Voice Workbench](docs/voice-workbench.md) for the reusable UI components,
+state/event model, real audio sources, interruption bridge and verification checklist.

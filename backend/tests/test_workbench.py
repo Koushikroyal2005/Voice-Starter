@@ -1,0 +1,123 @@
+import asyncio
+import json
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, Mock
+
+import pytest
+from livekit import rtc
+
+from app.services.workbench import install_workbench
+
+
+def bridge():
+    handlers = {}
+    events = {}
+
+    def register(target):
+        def decorator(name):
+            def wrap(callback):
+                target[name] = callback
+                return callback
+
+            return wrap
+
+        return decorator
+
+    local = SimpleNamespace(
+        register_rpc_method=register(handlers),
+        unregister_rpc_method=Mock(),
+        publish_data=AsyncMock(),
+        set_attributes=AsyncMock(),
+    )
+    ctx = SimpleNamespace(
+        room=SimpleNamespace(local_participant=local),
+        add_shutdown_callback=Mock(),
+    )
+    session = SimpleNamespace(
+        room_io=SimpleNamespace(linked_participant=SimpleNamespace(identity="user")),
+        interrupt=AsyncMock(),
+        on=register(events),
+    )
+    return ctx, session, handlers, events
+
+
+def test_interrupt_authentication_and_real_sdk_cancellation():
+    async def run():
+        ctx, session, handlers, _ = bridge()
+        await install_workbench(ctx, session, "en")
+        handler = handlers["voice.interrupt"]
+        with pytest.raises(rtc.RpcError):
+            await handler(SimpleNamespace(caller_identity="untrusted"))
+        session.interrupt.assert_not_awaited()
+        assert (
+            json.loads(await handler(SimpleNamespace(caller_identity="user")))[
+                "interrupted"
+            ]
+            is True
+        )
+        session.interrupt.assert_awaited_once_with(force=True)
+        session.room_io.linked_participant = None
+        with pytest.raises(rtc.RpcError):
+            await handler(SimpleNamespace(caller_identity="user"))
+        await ctx.add_shutdown_callback.call_args.args[0]()
+        ctx.room.local_participant.unregister_rpc_method.assert_called_once_with(
+            "voice.interrupt"
+        )
+
+    asyncio.run(run())
+
+
+def test_real_tool_events_are_sanitized_and_targeted():
+    async def run():
+        ctx, session, _, events = bridge()
+        await install_workbench(ctx, session, "en")
+        events["tool_execution_updated"](
+            SimpleNamespace(
+                update=SimpleNamespace(
+                    type="tool_call_started",
+                    function_call=SimpleNamespace(
+                        call_id="call-1", name="lookup", arguments="secret"
+                    ),
+                )
+            )
+        )
+        await asyncio.sleep(0)
+        events["tool_execution_updated"](
+            SimpleNamespace(
+                update=SimpleNamespace(
+                    type="tool_call_ended",
+                    call_id="call-1",
+                    status="done",
+                    message="secret",
+                )
+            )
+        )
+        await asyncio.sleep(0)
+        calls = ctx.room.local_participant.publish_data.call_args_list
+        assert [json.loads(c.args[0])["status"] for c in calls] == ["running", "done"]
+        assert all(c.kwargs["destination_identities"] == ["user"] for c in calls)
+        assert all("secret" not in c.args[0] for c in calls)
+        await ctx.add_shutdown_callback.call_args.args[0]()
+
+    asyncio.run(run())
+
+
+def test_only_actual_interrupted_items_emit_interruption():
+    async def run():
+        ctx, session, _, events = bridge()
+        await install_workbench(ctx, session, "en")
+        events["conversation_item_added"](
+            SimpleNamespace(item=SimpleNamespace(interrupted=False))
+        )
+        await asyncio.sleep(0)
+        ctx.room.local_participant.publish_data.assert_not_awaited()
+        events["conversation_item_added"](
+            SimpleNamespace(item=SimpleNamespace(interrupted=True))
+        )
+        await asyncio.sleep(0)
+        assert json.loads(
+            ctx.room.local_participant.publish_data.call_args.args[0]
+        ) == {"type": "interrupted"}
+        await ctx.add_shutdown_callback.call_args.args[0]()
+
+    asyncio.run(run())
