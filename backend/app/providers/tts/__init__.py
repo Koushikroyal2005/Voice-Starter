@@ -11,10 +11,6 @@ from app.providers.registry import ProviderError
 def groq_tts(config: ProviderConfig) -> TTS:
     from app.providers.tts.groq import GroqTTS
 
-    if config.voice not in ("autumn", "diana", "hannah", "austin", "daniel", "troy"):
-        raise ProviderError("Groq TTS_VOICE requires an English Orpheus voice")
-    if config.language not in ("en", "en-US", "en-GB"):
-        raise ProviderError("Groq Orpheus English requires TTS_LANGUAGE=en")
     return GroqTTS(api_key=config.api_key, model=config.model, voice=config.voice)
 
 
@@ -26,12 +22,7 @@ def gemini(config: ProviderConfig) -> TTS:
     which rejects its speechConfig. Do not patch the plugin's private client.
     """
     from livekit.plugins.google.beta import GeminiTTS
-    from livekit.plugins.google.beta.gemini_tts import GEMINI_VOICES
 
-    if config.voice not in get_args(GEMINI_VOICES):
-        raise ProviderError(
-            "Gemini TTS_VOICE must be a supported prebuilt voice, e.g. Kore"
-        )
     return GeminiTTS(
         api_key=config.api_key,
         model=config.model,

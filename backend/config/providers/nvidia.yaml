@@ -1,0 +1,18 @@
+# Trusted backend metadata only. No credentials; models are not auto-selected.
+version: 1
+name: "nvidia"
+categories:
+  llm:
+    adapter: "openai_compatible"
+    api_key_env: "NVIDIA_API_KEY"
+    default_model: "meta/llama-3.3-70b-instruct"
+    base_url: "https://integrate.api.nvidia.com/v1"
+    capabilities:
+      streaming: true
+      tool_calling: null
+    models:
+      "meta/llama-3.3-70b-instruct":
+        capabilities:
+          streaming: true
+          tool_calling: null
+    docs: "https://docs.api.nvidia.com/nim/reference/meta-llama-3_3-70b-instruct-infer"

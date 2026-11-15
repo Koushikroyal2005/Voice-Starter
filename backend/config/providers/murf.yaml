@@ -1,0 +1,30 @@
+# Trusted backend metadata only. No credentials; models are not auto-selected.
+version: 1
+name: "murf"
+categories:
+  tts:
+    adapter: "murf"
+    api_key_env: "MURF_API_KEY"
+    default_model: "FALCON"
+    base_url: ""
+    allow_custom_models: true
+    capabilities:
+      streaming: true
+      interim_transcription: null
+      turn_detection: null
+      multilingual: null
+      cancellation: true
+      tool_calling: null
+      notes: "Cancellation closes local streams; remote billing may continue."
+    models:
+      FALCON:
+        capabilities:
+          streaming: true
+          interim_transcription: null
+          turn_detection: null
+          multilingual: null
+          cancellation: true
+          tool_calling: null
+          notes: "Cancellation closes local streams; remote billing may continue."
+        voice: "en-US-matthew"
+    docs: "https://docs.livekit.io/agents/models/tts/murf/"

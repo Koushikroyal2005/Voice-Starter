@@ -6,6 +6,7 @@ from typing import cast
 
 from livekit.agents import llm, stt, tts
 
+from app.config.providers import validate_model_options
 from app.config.settings import ProviderConfig
 from app.providers.registry import ProviderError, registry
 
@@ -24,9 +25,9 @@ def preload_provider_plugins(configs: Iterable[ProviderConfig]) -> None:
         "gemini": "google",
     }
     for config in configs:
-        registry.get(config.category, config.provider)
+        spec = registry.get(config.category, config.provider)
         name = aliases.get(config.provider, config.provider)
-        module = f"livekit.plugins.{name}"
+        module = spec.plugin_module or f"livekit.plugins.{name}"
         if module not in modules:
             try:
                 import_module(module)
@@ -38,7 +39,10 @@ def preload_provider_plugins(configs: Iterable[ProviderConfig]) -> None:
 
 
 def create_provider(config: ProviderConfig) -> stt.STT | llm.LLM | tts.TTS:
-    spec = registry.get(config.category, config.provider)
+    try:
+        spec = registry.get(config.category, config.provider)
+    except ProviderError:
+        raise ProviderError("Unsupported provider/category selection") from None
     if not config.api_key.strip():
         raise ProviderError(
             f"{config.category}/{config.provider} requires {spec.api_key_env}"
@@ -46,7 +50,11 @@ def create_provider(config: ProviderConfig) -> stt.STT | llm.LLM | tts.TTS:
     if not config.model.strip():
         raise ProviderError(f"{config.category}/{config.provider} requires a model")
     if spec.models and config.model not in spec.models:
-        raise ProviderError(f"Unsupported model for {config.provider}: {config.model}")
+        raise ProviderError(f"Unsupported model for {config.provider}")
+    try:
+        validate_model_options(config, spec)
+    except ValueError as error:
+        raise ProviderError(str(error)) from None
     module, function = spec.builder.split(":")
     try:
         provider = getattr(import_module(module), function)(config)

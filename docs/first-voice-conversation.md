@@ -1,5 +1,9 @@
 # First local voice conversation
 
+Setup is now simpler: `VOICE_PROFILE=groq_gemini` resolves the same pipeline
+without manual provider/model/endpoint flags. See [provider profiles](provider-profiles.md).
+Expanded settings below document the resolved values and historical diagnostics.
+
 ## Current working provider profile: Groq Whisper → Groq LLM → Gemini TTS
 
 The Gemini failure has been resolved **without a custom adapter**. Keep your

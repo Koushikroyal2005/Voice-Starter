@@ -1,0 +1,93 @@
+# Trusted backend metadata only. No credentials; models are not auto-selected.
+version: 1
+name: "groq"
+categories:
+  stt:
+    adapter: "groq"
+    api_key_env: "GROQ_API_KEY"
+    default_model: "whisper-large-v3-turbo"
+    base_url: ""
+    allow_custom_models: false
+    capabilities:
+      streaming: false
+      interim_transcription: false
+      turn_detection: false
+      multilingual: true
+      cancellation: true
+      tool_calling: null
+      notes: "Cancellation closes local streams; remote billing may continue."
+    models:
+      "whisper-large-v3-turbo":
+        capabilities:
+          streaming: false
+          interim_transcription: false
+          turn_detection: false
+          multilingual: true
+          cancellation: true
+          tool_calling: null
+          notes: "Cancellation closes local streams; remote billing may continue."
+        voice: ""
+        evidence: "inference_verified"
+      "whisper-large-v3":
+        capabilities:
+          streaming: false
+          interim_transcription: false
+          turn_detection: false
+          multilingual: true
+          cancellation: true
+          tool_calling: null
+          notes: "Cancellation closes local streams; remote billing may continue."
+        voice: ""
+    docs: "https://console.groq.com/docs/speech-to-text"
+  tts:
+    adapter: "groq_tts"
+    api_key_env: "GROQ_API_KEY"
+    default_model: "canopylabs/orpheus-v1-english"
+    base_url: ""
+    allow_custom_models: false
+    capabilities:
+      streaming: false
+      interim_transcription: null
+      turn_detection: null
+      multilingual: false
+      cancellation: true
+      tool_calling: null
+      notes: "Cancellation closes local streams; remote billing may continue."
+    models:
+      "canopylabs/orpheus-v1-english":
+        capabilities:
+          streaming: false
+          interim_transcription: null
+          turn_detection: null
+          multilingual: false
+          cancellation: true
+          tool_calling: null
+          notes: "Cancellation closes local streams; remote billing may continue."
+        voice: "troy"
+        voices:
+          - "autumn"
+          - "diana"
+          - "hannah"
+          - "austin"
+          - "daniel"
+          - "troy"
+        languages:
+          - "en"
+          - "en-US"
+          - "en-GB"
+    docs: "https://console.groq.com/docs/text-to-speech/orpheus"
+  llm:
+    adapter: "openai_compatible"
+    api_key_env: "GROQ_API_KEY"
+    default_model: "openai/gpt-oss-20b"
+    base_url: "https://api.groq.com/openai/v1"
+    capabilities:
+      streaming: true
+      tool_calling: null
+    models:
+      "openai/gpt-oss-20b":
+        capabilities:
+          streaming: true
+          tool_calling: true
+        evidence: "inference_verified"
+    docs: "https://console.groq.com/docs/model/openai/gpt-oss-20b"

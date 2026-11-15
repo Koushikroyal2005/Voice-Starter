@@ -37,6 +37,10 @@ claimed verified without credentials and an actual test.
 
 ## Windows PowerShell quick start
 
+For local Groq/Google/NVIDIA configurations, select `VOICE_PROFILE=groq_gemini`
+instead of manually specifying models, endpoints and speech flags. See
+[provider profiles and offline/live doctor](docs/provider-profiles.md).
+
 Requirements: Node **24**, Corepack/pnpm **9.15.9**, uv, Python **3.13** (uv can
 install it), a LiveKit project and provider accounts. Docker Desktop's Linux engine
 is needed only for containers. No execution-policy change is necessary.

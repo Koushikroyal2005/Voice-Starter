@@ -2,7 +2,10 @@
 
 Constructors return native LiveKit interfaces, preserving streams/events rather
 than wrapping them in a text-only API. Offline constructor tests do not establish
-account access or acoustic quality. Exact defaults are in `app/providers/registry.py`.
+account access or acoustic quality. Exact model metadata/defaults now live in
+`backend/config/providers/*.yaml`, loaded into the existing registry. See
+[voice profiles and doctor](provider-profiles.md) for key-once profile setup,
+precedence, capability checks and opt-in inference diagnostics.
 
 ## Supported selections
 

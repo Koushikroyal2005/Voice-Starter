@@ -1,0 +1,11 @@
+version: 1
+name: nvidia_gemini
+# NVIDIA is LLM-only here; no unverified NVIDIA speech adapter is assumed.
+stt:
+  provider: groq
+llm:
+  provider: nvidia
+tts:
+  provider: gemini
+  model: gemini-3.8-flash-tts
+turn_detection: vad

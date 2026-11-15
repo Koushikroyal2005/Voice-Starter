@@ -442,7 +442,14 @@ def test_stt_primary_and_fallback_capability_checks_use_injected_metadata(
     isolated = ProviderRegistry()
     spec = registry.get("stt", "assemblyai")
     altered = replace(
-        spec, capabilities=replace(spec.capabilities, **{capability: False})
+        spec,
+        capabilities=replace(spec.capabilities, **{capability: False}),
+        model_metadata={
+            name: replace(
+                meta, capabilities=replace(meta.capabilities, **{capability: False})
+            )
+            for name, meta in spec.model_metadata.items()
+        },
     )
     isolated.register(altered)
     primary = resolve_provider(
@@ -461,7 +468,16 @@ def test_nonstreaming_llm_and_tts_metadata_cannot_be_used_as_fallbacks():
         spec = registry.list(category)[0]
         isolated = ProviderRegistry()
         isolated.register(
-            replace(spec, capabilities=replace(spec.capabilities, streaming=False))
+            replace(
+                spec,
+                capabilities=replace(spec.capabilities, streaming=False),
+                model_metadata={
+                    name: replace(
+                        meta, capabilities=replace(meta.capabilities, streaming=False)
+                    )
+                    for name, meta in spec.model_metadata.items()
+                },
+            )
         )
         primary = getattr(Settings.from_env(environment()), category)
         with pytest.raises(

@@ -1,0 +1,286 @@
+# Trusted backend metadata only. No credentials; models are not auto-selected.
+version: 1
+name: "gemini"
+categories:
+  stt:
+    adapter: "gemini"
+    api_key_env: "GOOGLE_API_KEY"
+    default_model: "gemini-3.5-transcribe-live"
+    base_url: ""
+    allow_custom_models: false
+    capabilities:
+      streaming: true
+      interim_transcription: true
+      turn_detection: false
+      multilingual: null
+      cancellation: true
+      tool_calling: null
+      notes: "Cancellation closes local streams; remote billing may continue."
+    models:
+      "gemini-3.5-transcribe-live":
+        capabilities:
+          streaming: true
+          interim_transcription: true
+          turn_detection: false
+          multilingual: null
+          cancellation: true
+          tool_calling: null
+          notes: "Cancellation closes local streams; remote billing may continue."
+        voice: ""
+        api_version: "v1beta"
+        evidence: "handshake_only"
+    docs: "https://docs.livekit.io/agents/models/stt/gemini/"
+  llm:
+    adapter: "gemini"
+    api_key_env: "GOOGLE_API_KEY"
+    default_model: "gemini-3.5-flash"
+    base_url: ""
+    allow_custom_models: true
+    capabilities:
+      streaming: true
+      interim_transcription: null
+      turn_detection: null
+      multilingual: null
+      cancellation: true
+      tool_calling: null
+      notes: "Cancellation closes local streams; remote billing may continue."
+    models:
+      "gemini-3.5-flash":
+        capabilities:
+          streaming: true
+          interim_transcription: null
+          turn_detection: null
+          multilingual: null
+          cancellation: true
+          tool_calling: null
+          notes: "Cancellation closes local streams; remote billing may continue."
+        voice: ""
+        api_version: "v1beta"
+    docs: "https://docs.livekit.io/agents/models/llm/gemini/"
+  tts:
+    adapter: "gemini"
+    api_key_env: "GOOGLE_API_KEY"
+    default_model: "gemini-3.1-flash-tts-preview"
+    base_url: ""
+    allow_custom_models: false
+    capabilities:
+      streaming: false
+      interim_transcription: null
+      turn_detection: null
+      multilingual: null
+      cancellation: true
+      tool_calling: null
+      notes: "Non-streaming text input; native chunked audio output. AgentSession uses its sentence StreamAdapter. Local cancellation only."
+    models:
+      "gemini-2.5-flash-preview-tts":
+        capabilities:
+          streaming: false
+          interim_transcription: null
+          turn_detection: null
+          multilingual: null
+          cancellation: true
+          tool_calling: null
+          notes: "Non-streaming text input; native chunked audio output. AgentSession uses its sentence StreamAdapter. Local cancellation only."
+        voice: "Kore"
+        api_version: "v1beta"
+        voices:
+          - "Zephyr"
+          - "Puck"
+          - "Charon"
+          - "Kore"
+          - "Fenrir"
+          - "Leda"
+          - "Orus"
+          - "Aoede"
+          - "Callirrhoe"
+          - "Autonoe"
+          - "Enceladus"
+          - "Iapetus"
+          - "Umbriel"
+          - "Algieba"
+          - "Despina"
+          - "Erinome"
+          - "Algenib"
+          - "Rasalgethi"
+          - "Laomedeia"
+          - "Achernar"
+          - "Alnilam"
+          - "Schedar"
+          - "Gacrux"
+          - "Pulcherrima"
+          - "Achird"
+          - "Zubenelgenubi"
+          - "Vindemiatrix"
+          - "Sadachbia"
+          - "Sadaltager"
+          - "Sulafat"
+      "gemini-2.5-pro-preview-tts":
+        capabilities:
+          streaming: false
+          interim_transcription: null
+          turn_detection: null
+          multilingual: null
+          cancellation: true
+          tool_calling: null
+          notes: "Non-streaming text input; native chunked audio output. AgentSession uses its sentence StreamAdapter. Local cancellation only."
+        voice: "Kore"
+        api_version: "v1beta"
+        voices:
+          - "Zephyr"
+          - "Puck"
+          - "Charon"
+          - "Kore"
+          - "Fenrir"
+          - "Leda"
+          - "Orus"
+          - "Aoede"
+          - "Callirrhoe"
+          - "Autonoe"
+          - "Enceladus"
+          - "Iapetus"
+          - "Umbriel"
+          - "Algieba"
+          - "Despina"
+          - "Erinome"
+          - "Algenib"
+          - "Rasalgethi"
+          - "Laomedeia"
+          - "Achernar"
+          - "Alnilam"
+          - "Schedar"
+          - "Gacrux"
+          - "Pulcherrima"
+          - "Achird"
+          - "Zubenelgenubi"
+          - "Vindemiatrix"
+          - "Sadachbia"
+          - "Sadaltager"
+          - "Sulafat"
+      "gemini-3.1-flash-tts-preview":
+        capabilities:
+          streaming: false
+          interim_transcription: null
+          turn_detection: null
+          multilingual: null
+          cancellation: true
+          tool_calling: null
+          notes: "Non-streaming text input; native chunked audio output. AgentSession uses its sentence StreamAdapter. Local cancellation only."
+        voice: "Kore"
+        api_version: "v1beta"
+        voices:
+          - "Zephyr"
+          - "Puck"
+          - "Charon"
+          - "Kore"
+          - "Fenrir"
+          - "Leda"
+          - "Orus"
+          - "Aoede"
+          - "Callirrhoe"
+          - "Autonoe"
+          - "Enceladus"
+          - "Iapetus"
+          - "Umbriel"
+          - "Algieba"
+          - "Despina"
+          - "Erinome"
+          - "Algenib"
+          - "Rasalgethi"
+          - "Laomedeia"
+          - "Achernar"
+          - "Alnilam"
+          - "Schedar"
+          - "Gacrux"
+          - "Pulcherrima"
+          - "Achird"
+          - "Zubenelgenubi"
+          - "Vindemiatrix"
+          - "Sadachbia"
+          - "Sadaltager"
+          - "Sulafat"
+      "gemini-3.8-flash-tts":
+        capabilities:
+          streaming: false
+          interim_transcription: null
+          turn_detection: null
+          multilingual: null
+          cancellation: true
+          tool_calling: null
+          notes: "Non-streaming text input; native chunked audio output. AgentSession uses its sentence StreamAdapter. Local cancellation only."
+        voice: "Kore"
+        api_version: "v1beta"
+        voices:
+          - "Zephyr"
+          - "Puck"
+          - "Charon"
+          - "Kore"
+          - "Fenrir"
+          - "Leda"
+          - "Orus"
+          - "Aoede"
+          - "Callirrhoe"
+          - "Autonoe"
+          - "Enceladus"
+          - "Iapetus"
+          - "Umbriel"
+          - "Algieba"
+          - "Despina"
+          - "Erinome"
+          - "Algenib"
+          - "Rasalgethi"
+          - "Laomedeia"
+          - "Achernar"
+          - "Alnilam"
+          - "Schedar"
+          - "Gacrux"
+          - "Pulcherrima"
+          - "Achird"
+          - "Zubenelgenubi"
+          - "Vindemiatrix"
+          - "Sadachbia"
+          - "Sadaltager"
+          - "Sulafat"
+        evidence: "inference_verified"
+      "gemini-3.8-flash-lite-tts":
+        capabilities:
+          streaming: false
+          interim_transcription: null
+          turn_detection: null
+          multilingual: null
+          cancellation: true
+          tool_calling: null
+          notes: "Non-streaming text input; native chunked audio output. AgentSession uses its sentence StreamAdapter. Local cancellation only."
+        voice: "Kore"
+        api_version: "v1beta"
+        voices:
+          - "Zephyr"
+          - "Puck"
+          - "Charon"
+          - "Kore"
+          - "Fenrir"
+          - "Leda"
+          - "Orus"
+          - "Aoede"
+          - "Callirrhoe"
+          - "Autonoe"
+          - "Enceladus"
+          - "Iapetus"
+          - "Umbriel"
+          - "Algieba"
+          - "Despina"
+          - "Erinome"
+          - "Algenib"
+          - "Rasalgethi"
+          - "Laomedeia"
+          - "Achernar"
+          - "Alnilam"
+          - "Schedar"
+          - "Gacrux"
+          - "Pulcherrima"
+          - "Achird"
+          - "Zubenelgenubi"
+          - "Vindemiatrix"
+          - "Sadachbia"
+          - "Sadaltager"
+          - "Sulafat"
+    docs: "https://docs.livekit.io/agents/models/tts/gemini/"

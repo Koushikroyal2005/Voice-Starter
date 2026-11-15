@@ -1,0 +1,40 @@
+# Trusted backend metadata only. No credentials; models are not auto-selected.
+version: 1
+name: "deepgram"
+categories:
+  stt:
+    adapter: "deepgram"
+    api_key_env: "DEEPGRAM_API_KEY"
+    default_model: "nova-3"
+    base_url: ""
+    allow_custom_models: false
+    capabilities:
+      streaming: true
+      interim_transcription: true
+      turn_detection: false
+      multilingual: null
+      cancellation: true
+      tool_calling: null
+      notes: "Cancellation closes local streams; remote billing may continue."
+    models:
+      "nova-3":
+        capabilities:
+          streaming: true
+          interim_transcription: true
+          turn_detection: false
+          multilingual: null
+          cancellation: true
+          tool_calling: null
+          notes: "Cancellation closes local streams; remote billing may continue."
+        voice: ""
+      "nova-2":
+        capabilities:
+          streaming: true
+          interim_transcription: true
+          turn_detection: false
+          multilingual: null
+          cancellation: true
+          tool_calling: null
+          notes: "Cancellation closes local streams; remote billing may continue."
+        voice: ""
+    docs: "https://docs.livekit.io/agents/models/stt/deepgram/"

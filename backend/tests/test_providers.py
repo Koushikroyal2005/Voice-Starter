@@ -174,6 +174,7 @@ def test_real_plugin_construction_and_native_capabilities(spec):
                 "openai_compatible": "openai",
                 "gemini": "google",
                 "groq": "openai",
+                "nvidia": "openai",
             }.get(spec.name, spec.name)
             if spec.name == "groq" and spec.category == "tts":
                 assert provider.__class__.__module__ == "app.providers.tts.groq"

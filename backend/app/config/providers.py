@@ -111,11 +111,32 @@ def resolve_provider(
         api_key=key,
         base_url=base_url,
         language=optional(f"{prefix}_LANGUAGE", "en"),
-        voice=optional(f"{prefix}_VOICE", spec.voice),
+        voice=optional(
+            f"{prefix}_VOICE",
+            (
+                spec.model_metadata[model].voice
+                if model in spec.model_metadata
+                else spec.voice
+            ),
+        ),
     )
+    if values.get("VOICE_PROFILE", "").strip():
+        validate_model_options(config, spec)
     if missing is None:
         require_credentials(absent)
     return config
+
+
+def validate_model_options(config: ProviderConfig, spec: ProviderSpec) -> None:
+    metadata = spec.model_metadata.get(config.model)
+    if metadata and metadata.voices and config.voice not in metadata.voices:
+        raise ConfigurationError(
+            f"{config.category.upper()}_VOICE is unsupported for selected model"
+        )
+    if metadata and metadata.languages and config.language not in metadata.languages:
+        raise ConfigurationError(
+            f"{config.category.upper()}_LANGUAGE is unsupported for selected model"
+        )
 
 
 def resolve_stt_requirements(
@@ -129,7 +150,7 @@ def resolve_stt_requirements(
     turn_detection = values.get("TURN_DETECTION", "").strip() or "vad"
     if turn_detection not in ("vad", "stt"):
         raise ConfigurationError("TURN_DETECTION must be vad or stt")
-    caps = provider_registry.get("stt", config.provider).capabilities
+    caps = provider_registry.get("stt", config.provider).capabilities_for(config.model)
     if not caps.streaming and not allow_batch:
         raise ConfigurationError(
             "Batch STT requires STT_ALLOW_BATCH=true; no live interim results"
@@ -178,7 +199,7 @@ def resolve_fallbacks(
             resolve_stt_requirements(overlay, fallback, provider_registry)
         if fallback.language != primary_providers[category].language:
             raise ConfigurationError("Fallback language must match primary")
-        if not spec.capabilities.streaming:
+        if not spec.capabilities_for(fallback.model).streaming:
             raise ConfigurationError("Batch providers cannot be realtime fallbacks")
         fallbacks.append(fallback)
     return tuple(fallbacks)

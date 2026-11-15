@@ -1,6 +1,7 @@
 """Application configuration assembly; credentials never enter frontend code."""
 
 import os
+import warnings
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -9,6 +10,7 @@ from dotenv import load_dotenv
 
 from app.agents.instructions import DEFAULT_INSTRUCTIONS
 from app.config.infrastructure import InfrastructureSettings
+from app.config.profiles import resolve_voice_profile
 from app.config.providers import (
     ProviderConfig,
     resolve_fallbacks,
@@ -22,7 +24,7 @@ from app.config.validation import (
     validate_url,
 )
 from app.observability.config import ObservabilitySettings
-from app.providers.registry import Category
+from app.providers.registry import Category, registry
 
 ENV_FILE = Path(__file__).resolve().parents[2] / ".env"
 
@@ -35,6 +37,9 @@ class Settings:
     stt: ProviderConfig
     llm: ProviderConfig
     tts: ProviderConfig
+    voice_profile: str = ""
+    profile_overrides: tuple[str, ...] = ()
+    google_api_version: str = ""
     agent_name: str = ""
     instructions: str = DEFAULT_INSTRUCTIONS
     use_case: str = "general_assistant"
@@ -63,7 +68,9 @@ class Settings:
             use_case = usecases.get(supplied.get("USE_CASE", "").strip())
         except ValueError as error:
             raise ConfigurationError(str(error)) from None
-        values = {**use_case.provider_defaults, **supplied}
+        values, profile_overrides = resolve_voice_profile(
+            supplied, use_case.provider_defaults, registry
+        )
 
         def optional(key: str, default: str = "") -> str:
             return values.get(key, "").strip() or default
@@ -102,6 +109,9 @@ class Settings:
         except ValueError as error:
             raise ConfigurationError(str(error)) from None
         return cls(
+            voice_profile=supplied.get("VOICE_PROFILE", "").strip(),
+            profile_overrides=profile_overrides,
+            google_api_version=optional("GOOGLE_GENAI_API_VERSION"),
             use_case=use_case.id,
             observability=observability,
             fallbacks=fallbacks,
@@ -137,4 +147,15 @@ class Settings:
 def load_settings() -> Settings:
     """Process environment overrides backend/.env."""
     load_dotenv(ENV_FILE, override=False)
-    return Settings.from_env()
+    settings = Settings.from_env()
+    if settings.profile_overrides:
+        warnings.warn(
+            "Acknowledged voice profile overrides: "
+            + ", ".join(settings.profile_overrides),
+            stacklevel=2,
+        )
+    # Native Google TTS 1.8.12 has no http_options argument. Use the supported
+    # SDK environment seam, only at the process boundary (not the pure resolver).
+    if settings.google_api_version:
+        os.environ["GOOGLE_GENAI_API_VERSION"] = settings.google_api_version
+    return settings

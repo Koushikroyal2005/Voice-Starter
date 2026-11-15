@@ -1,0 +1,30 @@
+# Trusted backend metadata only. No credentials; models are not auto-selected.
+version: 1
+name: "elevenlabs"
+categories:
+  tts:
+    adapter: "elevenlabs"
+    api_key_env: "ELEVEN_API_KEY"
+    default_model: "eleven_multilingual_v2"
+    base_url: ""
+    allow_custom_models: true
+    capabilities:
+      streaming: true
+      interim_transcription: null
+      turn_detection: null
+      multilingual: null
+      cancellation: true
+      tool_calling: null
+      notes: "Cancellation closes local streams; remote billing may continue."
+    models:
+      eleven_multilingual_v2:
+        capabilities:
+          streaming: true
+          interim_transcription: null
+          turn_detection: null
+          multilingual: null
+          cancellation: true
+          tool_calling: null
+          notes: "Cancellation closes local streams; remote billing may continue."
+        voice: "ODq5zmih8GrVes37Dizd"
+    docs: "https://docs.livekit.io/agents/models/tts/elevenlabs/"
