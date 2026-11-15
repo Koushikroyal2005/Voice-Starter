@@ -414,6 +414,7 @@ def test_standalone_resolution_requires_only_selected_credentials(
     values = {
         f"{category.upper()}_PROVIDER": spec.name,
         spec.api_key_env: "selected-key",
+        "STT_ALLOW_BATCH": "true" if category == "stt" else "false",
     }
     config = resolve_provider(category, values)
     assert config.api_key == "selected-key"

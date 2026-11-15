@@ -40,3 +40,26 @@ def whisper(config: ProviderConfig) -> STT:
         base_url=config.base_url,
         use_realtime=False,
     )
+
+
+def gemini(config: ProviderConfig) -> STT:
+    from livekit.plugins.google.beta import GeminiSTT
+
+    return GeminiSTT(
+        api_key=config.api_key,
+        model=config.model,
+        language=config.language,
+        vertexai=False,
+    )
+
+
+def groq(config: ProviderConfig) -> STT:
+    from livekit.plugins import openai
+
+    return openai.STT(
+        api_key=config.api_key,
+        model=config.model,
+        language=config.language,
+        base_url="https://api.groq.com/openai/v1",
+        use_realtime=False,
+    )

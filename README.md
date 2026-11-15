@@ -2,8 +2,12 @@
 
 A reusable hackathon foundation: **Next.js at the repository root**, one separate
 Python LiveKit Agents worker in `backend/`, and replaceable native STT → LLM → TTS
-plugins. Browser and worker join the same **external LiveKit project**; the browser
+plugins. Browser and worker join the same **LiveKit server** (including local self-hosting); the browser
 does not call the Python worker over HTTP.
+
+For laptop-only self-hosted development (no LiveKit Cloud), see
+[Local LiveKit on Windows](docs/local-livekit-windows.md), including three-terminal
+startup and the distinction between local transport and external model APIs.
 
 This is a development starter, not a publicly deployable product. The existing
 unauthenticated `/api/token` endpoint **works only in `next dev`** and returns 403

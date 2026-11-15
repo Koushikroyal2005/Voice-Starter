@@ -173,10 +173,14 @@ def test_real_plugin_construction_and_native_capabilities(spec):
                 "whisper": "openai",
                 "openai_compatible": "openai",
                 "gemini": "google",
+                "groq": "openai",
             }.get(spec.name, spec.name)
-            assert provider.__class__.__module__.startswith(
-                f"livekit.plugins.{plugin_name}."
-            )
+            if spec.name == "groq" and spec.category == "tts":
+                assert provider.__class__.__module__ == "app.providers.tts.groq"
+            else:
+                assert provider.__class__.__module__.startswith(
+                    f"livekit.plugins.{plugin_name}."
+                )
             assert provider.model == config.model
             if spec.category != "llm":
                 assert provider.capabilities.streaming == spec.capabilities.streaming
