@@ -19,6 +19,12 @@ def groq_tts(config: ProviderConfig) -> TTS:
 
 
 def gemini(config: ProviderConfig) -> TTS:
+    """Use native audio synthesis; google-genai 3.x needs the v1beta env setting.
+
+    Set GOOGLE_GENAI_API_VERSION=v1beta before construction. The installed plugin
+    has no http_options argument, and SDK 3.3.0 otherwise selects stable v1,
+    which rejects its speechConfig. Do not patch the plugin's private client.
+    """
     from livekit.plugins.google.beta import GeminiTTS
     from livekit.plugins.google.beta.gemini_tts import GEMINI_VOICES
 

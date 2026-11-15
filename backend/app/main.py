@@ -9,6 +9,7 @@ from app.agents.orchestrator import MainAgent
 from app.bootstrap import build_orchestrator
 from app.config.settings import ConfigurationError, load_settings
 from app.observability.session import install_observability
+from app.providers.factory import preload_provider_plugins
 from app.providers.pipeline import create_session
 from app.providers.registry import ProviderError
 from app.services.infrastructure import install_infrastructure
@@ -55,6 +56,10 @@ def create_server() -> AgentServer:
     # download-files and --help must work before credentials are configured.
     download_only = "download-files" in sys.argv or "--help" in sys.argv
     settings = None if download_only else load_settings()
+    if settings:
+        preload_provider_plugins(
+            (settings.stt, settings.llm, settings.tts, *settings.fallbacks)
+        )
     server = AgentServer(
         drain_timeout=30,
         shutdown_process_timeout=140,

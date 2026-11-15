@@ -86,6 +86,10 @@ class SessionObserver:
         @self.session.on("conversation_item_added")
         def on_item(event):
             item = event.item
+            # SDK 1.8 also emits AgentHandoff/unknown items here; only messages
+            # have speech metrics. These bookkeeping events are not voice turns.
+            if getattr(item, "type", "message") != "message":
+                return
             if item.id in self.seen:
                 return
             self.seen[item.id] = True

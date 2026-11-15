@@ -1,5 +1,6 @@
 """Select plugins without wrapping away LiveKit's streaming interfaces."""
 
+from collections.abc import Iterable
 from importlib import import_module
 from typing import cast
 
@@ -7,6 +8,33 @@ from livekit.agents import llm, stt, tts
 
 from app.config.settings import ProviderConfig
 from app.providers.registry import ProviderError, registry
+
+
+def preload_provider_plugins(configs: Iterable[ProviderConfig]) -> None:
+    """Register selected SDK plugins on the main thread, before job threads start.
+
+    Importing a plugin inside a Windows LiveKit job thread fails on its first
+    registration. This performs imports only, never provider/API construction.
+    """
+    modules = set()
+    aliases = {
+        "groq": "openai",
+        "whisper": "openai",
+        "openai_compatible": "openai",
+        "gemini": "google",
+    }
+    for config in configs:
+        registry.get(config.category, config.provider)
+        name = aliases.get(config.provider, config.provider)
+        module = f"livekit.plugins.{name}"
+        if module not in modules:
+            try:
+                import_module(module)
+            except ImportError:
+                raise ProviderError(
+                    f"Plugin for {config.provider} is unavailable; run uv sync --locked"
+                ) from None
+            modules.add(module)
 
 
 def create_provider(config: ProviderConfig) -> stt.STT | llm.LLM | tts.TTS:

@@ -110,6 +110,17 @@ def answer(session, start=100):
     )
 
 
+def test_agent_handoff_is_not_treated_as_a_speech_message():
+    from livekit.agents.llm import AgentHandoff
+
+    session, _, capture, monitor = observer()
+    session.emit(
+        "conversation_item_added", item=AgentHandoff(new_agent_id="synthetic-agent")
+    )
+    assert not capture.events
+    assert monitor.current is None
+
+
 def test_stage_timings_and_late_turn_correlation():
     session, _, capture, _ = observer()
     speech(session)

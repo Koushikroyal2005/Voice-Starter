@@ -1,6 +1,138 @@
 # First local voice conversation
 
-## Current selection: Groq Whisper → Groq LLM → Groq Orpheus
+## Current working provider profile: Groq Whisper → Groq LLM → Gemini TTS
+
+The Gemini failure has been resolved **without a custom adapter**. Keep your
+existing backend-only keys. Current ignored `backend/.env` selects:
+
+```dotenv
+STT_PROVIDER=groq
+STT_MODEL=whisper-large-v3-turbo
+STT_ALLOW_BATCH=true
+STT_REQUIRE_INTERIM=false
+TURN_DETECTION=vad
+LLM_PROVIDER=openai_compatible
+LLM_BASE_URL=https://api.groq.com/openai/v1
+LLM_MODEL=openai/gpt-oss-20b
+TTS_PROVIDER=gemini
+TTS_MODEL=gemini-3.8-flash-tts
+TTS_VOICE=Kore
+GOOGLE_GENAI_API_VERSION=v1beta
+```
+
+### Exact root cause and small configuration fix
+
+Installed versions are Agents **1.8.12**, Google plugin **1.8.12**, google-genai
+**3.3.0**. The latter defaults to **v1**, unlike the beta assumption in older
+examples. No API-version environment override was present. The native plugin
+constructs `genai.Client` without `http_options`, so its streamed synthesis request
+went to `/v1/models/...:streamGenerateContent`. That endpoint returned HTTP 400
+`INVALID_ARGUMENT`: unknown `speechConfig` at `generation_config`.
+
+The earlier successful direct call explicitly selected `v1beta`. The supported
+SDK setting `GOOGLE_GENAI_API_VERSION=v1beta` makes the **unchanged native plugin**
+use `/v1beta/models/...:streamGenerateContent`; that request now succeeds. This is
+an API-version mismatch, not a bad API key, account speech prohibition, wrong voice
+or malformed audio. No dependency downgrade/upgrade or private monkey patch is
+needed. The plugin does not expose a constructor `http_options` parameter, hence
+the documented SDK environment switch. Restart the worker after changing it;
+shell environment still takes precedence over `.env`. This process-wide SDK
+setting also affects other Google clients that do not explicitly choose a version.
+
+Offline HTTP transport tests compare both requests: the payloads are identical
+and only the URL version changes. google-genai 3.3.0 serializes `generationConfig`
+with `responseModalities` and `speechConfig`; nested voice fields are serialized
+as `voice_config/prebuilt_voice_config/voice_name`. The successful real beta
+request uses that same mapping—there is no need to rewrite those fields manually.
+
+See [SDK API selection](https://googleapis.github.io/python-genai/),
+[Google GenerateContent TTS](https://ai.google.dev/gemini-api/docs/generate-content/speech-generation)
+and [LiveKit native Gemini TTS](https://docs.livekit.io/agents/models/tts/gemini/).
+The SDK reference's general beta-default prose does not match this installed
+3.3.0 default; installed source and transport tests establish the actual behavior.
+
+### Verified on 15 November 2026
+
+- **Real API / native TTS:** `gemini-3.8-flash-tts`, Kore, v1beta generated
+  “Hello Koushik, your voice assistant is working.” The native LiveKit emitter
+  produced 20 frames, 74,880 samples (3.12 seconds), 24 kHz, mono signed 16-bit PCM.
+  Samples were nonzero and frame metadata valid. Human listening was not performed.
+  Testing stopped at the first successful model; 3.8 Flash-Lite and 3.1 Preview
+  mappings were tested offline, not billed again for account-availability checks.
+- **Real complete AgentSession pipeline:** a synthetic, public diagnostic question
+  was generated, converted with LiveKit's resampler to a 16 kHz mono PCM WAV,
+  and replayed using existing `app.evaluation.voice.run_voice` (not another pipeline).
+  Groq Whisper returned “What is 2 plus 3?”; Groq LLM generated a response, a
+  `tool_execution` event was recorded, and Gemini produced actual response audio.
+  There were zero provider-error events. One roomless replay measured first audio
+  at 3.32 seconds and full turn at 5.88 seconds; these are individual observations,
+  not benchmarks, target guarantees or network/browser latency measurements.
+- The synthetic fixture is ignored at `.local/voice-diagnostics/english.wav`.
+  It is not a person's consented microphone recording; no private recording was
+  supplied. Generated audio and environment files are not tracked.
+- **Unit-tested:** 380 backend tests passed, 10 skipped; Ruff lint and format
+  passed (97 files). New tests cover API-version regression, request mapping,
+  supported model/voice selection, PCM decoding/framing, sample rate, error mapping,
+  cancellation, timeout transport failure and SDK client cleanup. Existing provider
+  compatibility remains covered. External-service/voice-scenario skips are not
+  claimed as integration-test passes.
+- **Local server/worker:** existing LiveKit 7880 and Next.js 3000 processes were
+  retained. Exactly one worker was started and registered on localhost.
+- **Browser:** the unchanged UI page loaded. User deferred the physical test;
+  browser-to-worker job delivery, microphone transcript, audible speakers,
+  barge-in, disconnect and reconnect for this profile remain **unverified**.
+  Frontend and shared-contract source did not change.
+
+Native TTS still advertises `streaming=False` for **text input**. It receives
+real incremental PCM audio from Google; AgentSession owns sentence adaptation,
+VAD interruption and playback cancellation. No custom WebRTC, frame buffering or
+orchestration was added. The existing plugin owns Google network timeout/error
+handling and resource closure; `APIConnectOptions.timeout` is not forwarded by
+this pinned plugin as an explicit whole-synthesis deadline. Native bounded retries
+and cancellation remain unchanged. Timeout tests exercise transport error mapping,
+not a new end-to-end deadline guarantee.
+
+### Physical acceptance test (user will perform later)
+
+#### Windows worker startup regression fixed
+
+The UI's “Agent unavailable” message was reproduced even with matching dispatch
+names and a running worker. Actual job startup raised `RuntimeError: Plugins must
+be registered on the main thread`: lazy provider imports ran for the first time
+inside a Windows LiveKit job thread. Worker registration alone did not catch it.
+
+`create_server()` now preloads the selected providers' native plugin modules,
+including configured fallbacks, on the main thread before constructing the server.
+This performs no API calls or provider construction. A fresh-interpreter thread
+regression test covers the mixed Groq/Gemini pipeline. An isolated real dispatch
+then joined a local room as an agent participant; its temporary room was deleted.
+The metrics observer also ignores SDK handoff bookkeeping items, which have no
+speech metrics. Existing session/provider/cancellation behavior is unchanged.
+After these startup fixes: **384 backend tests passed, 10 skipped**; Ruff lint
+and formatting passed (98 files). No frontend changes were needed.
+
+After restarting the worker, **end the failed browser session and reconnect**.
+Do not expect the already-failed browser agent state to repair itself in place.
+
+The diagnostic worker was left running. Do not start a duplicate. If it has exited:
+
+```powershell
+cd 'E:\voice agent starter\voice-agent-starter\backend'
+uv run python -m app.main dev
+```
+
+1. Open http://localhost:3000, connect with voice, and allow microphone access.
+2. Ask “What is two plus three?” Expect a **final** transcript after the VAD pause,
+   not interim Whisper words. Confirm an audible answer through your speakers.
+3. Speak “Stop. What time is it?” while it talks. Confirm obsolete audio stops and
+   the new reply/tool activity is meaningful. Muting alone is not barge-in.
+4. End the session; confirm disconnection. Reconnect and repeat the question.
+5. Report whether playback and interruption worked. Until observed, these remain
+   manual acceptance items rather than successful browser-call claims.
+
+---
+
+## Previous selection: Groq Whisper → Groq LLM → Groq Orpheus
 
 The ignored backend `.env` now selects:
 
