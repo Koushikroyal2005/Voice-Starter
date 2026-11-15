@@ -124,12 +124,9 @@ async def install_workbench(
                     snapshot = candidate
             return response("voice.tools_state", snapshot)
 
-        @session.on("user_state_changed")
-        def on_user_state(event):
-            if event.new_state == "speaking":
-                task = asyncio.create_task(orchestrator.executor.cancel_safe())
-                tasks.add(task)
-                task.add_done_callback(tasks.discard)
+        # VAD's "speaking" is not a confirmed interruption. Safe function tools
+        # already follow their native SpeechHandle in Orchestrator.make_tool;
+        # do not bypass LiveKit's interruption thresholds/false-interruption logic.
 
         def bind_actor():
             participant = session.room_io.linked_participant

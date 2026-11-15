@@ -146,7 +146,13 @@ export function AgentTrackToggle({
       variant={variant}
       pressed={isControlled ? pressed : undefined}
       defaultPressed={isControlled ? undefined : defaultPressed}
-      aria-label={`Toggle ${source}`}
+      aria-label={
+        source === 'microphone'
+          ? resolvedPressed
+            ? 'Mute microphone'
+            : 'Unmute microphone'
+          : `Toggle ${source}`
+      }
       onPressedChange={handlePressedChange}
       className={cn(
         agentTrackToggleVariants({

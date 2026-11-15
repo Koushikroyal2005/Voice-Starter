@@ -155,7 +155,11 @@ function TrackDeviceSelect({
       onOpenChange={handleOpenChange}
       onValueChange={onActiveDeviceChange}
     >
-      <SelectTrigger className={cn(selectVariants({ size, variant }), className)} {...props}>
+      <SelectTrigger
+        aria-label={`Select ${kind === 'audioinput' ? 'microphone' : 'camera'}`}
+        className={cn(selectVariants({ size, variant }), className)}
+        {...props}
+      >
         {size !== 'sm' && (
           <SelectValue className="font-mono text-sm" placeholder={`Select a ${kind}`} />
         )}
@@ -273,9 +277,13 @@ export function AgentTrackControl({
     }
   };
 
-  const handleActiveDeviceChange = (deviceId: string) => {
-    setActiveMediaDevice(deviceId);
-    onActiveDeviceChange?.(deviceId);
+  const handleActiveDeviceChange = async (deviceId: string) => {
+    try {
+      await setActiveMediaDevice(deviceId);
+      onActiveDeviceChange?.(deviceId);
+    } catch (error) {
+      onMediaDeviceError?.(error instanceof Error ? error : new Error('Device selection failed'));
+    }
   };
 
   const filteredDevices = useMemo(() => devices.filter((d) => d.deviceId !== ''), [devices]);

@@ -7,9 +7,64 @@ from unittest.mock import AsyncMock, Mock
 import pytest
 from livekit import rtc
 
+from app.agents.orchestrator import Orchestrator
 from app.bootstrap import build_orchestrator
 from app.services.workbench import install_workbench
+from app.tools.base import Schema, ToolDefinition
 from app.tools.common.time import TIME_TOOL
+from app.usecases.registry import registry as usecases
+
+
+@pytest.mark.parametrize("mode", ["normal", "false_speech", "interrupt", "shutdown"])
+def test_tool_completion_false_vad_and_explicit_cancellation(mode):
+    async def run():
+        started, release = asyncio.Event(), asyncio.Event()
+
+        async def handler(args, context):
+            started.set()
+            await release.wait()
+            return Schema()
+
+        tool = ToolDefinition(
+            "safe_read", "Safe read", "Test read", Schema, Schema, handler
+        )
+        orchestrator = Orchestrator(
+            use_case=usecases.get(),
+            tool_definitions=(tool,),
+            allowlist=frozenset({tool.name}),
+        )
+        ctx, session, handlers, events = bridge()
+        await install_workbench(ctx, session, "en", orchestrator)
+        pending = asyncio.create_task(
+            orchestrator.executor.execute(tool.name, {}, call_id="read")
+        )
+        await asyncio.wait_for(started.wait(), 2)
+        if mode == "false_speech":
+            # Dispatch as EventEmitter would: no bridge listener means VAD alone
+            # cannot cancel a tool or pending human confirmation.
+            if callback := events.get("user_state_changed"):
+                callback(SimpleNamespace(new_state="speaking"))
+            await asyncio.sleep(0)
+            assert not pending.done()
+        if mode == "interrupt":
+            await handlers["voice.interrupt"](SimpleNamespace(caller_identity="user"))
+        elif mode == "shutdown":
+            await ctx.add_shutdown_callback.call_args.args[0]()
+        else:
+            release.set()
+        if mode in {"interrupt", "shutdown"}:
+            with pytest.raises(asyncio.CancelledError):
+                await asyncio.wait_for(pending, 2)
+            assert orchestrator.activities["read"]["status"] == "cancelled"
+        else:
+            assert (await asyncio.wait_for(pending, 2)).status == "completed"
+        if mode != "shutdown":
+            await ctx.add_shutdown_callback.call_args.args[0]()
+        assert all(
+            op.task.done() for op in orchestrator.executor.ledger.operations.values()
+        )
+
+    asyncio.run(run())
 
 
 def bridge():

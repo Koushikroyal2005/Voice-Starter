@@ -37,16 +37,17 @@ claimed verified without credentials and an actual test.
 
 ## Windows PowerShell quick start
 
-For local Groq/Google/NVIDIA configurations, select `VOICE_PROFILE=groq_gemini`
+For the verified local Groq/NVIDIA configuration, select `VOICE_PROFILE=groq_nvidia`
 instead of manually specifying models, endpoints and speech flags. See
 [provider profiles and offline/live doctor](docs/provider-profiles.md).
 
 Requirements: Node **24**, Corepack/pnpm **9.15.9**, uv, Python **3.13** (uv can
-install it), a LiveKit project and provider accounts. Docker Desktop's Linux engine
+install it), the local LiveKit binary and provider accounts. Docker Desktop's Linux engine
 is needed only for containers. No execution-policy change is necessary.
 
 ```powershell
-cd 'E:\voice agent starter\voice-agent-starter'
+git clone https://github.com/Koushikroyal2005/Voice-Starter.git
+cd Voice-Starter
 node --version
 # If Corepack is missing: npm.cmd install --global corepack
 corepack pnpm install --frozen-lockfile
@@ -60,21 +61,18 @@ notepad backend/.env
 Set these **same** server values in both files:
 
 ```dotenv
-LIVEKIT_URL=wss://YOUR_PROJECT.livekit.cloud
-LIVEKIT_API_KEY=YOUR_LIVEKIT_API_KEY
-LIVEKIT_API_SECRET=YOUR_LIVEKIT_API_SECRET
-AGENT_NAME=voice-starter
+LIVEKIT_URL=ws://localhost:7880
+LIVEKIT_API_KEY=devkey
+LIVEKIT_API_SECRET=secret
+AGENT_NAME=
 ```
 
 Only `backend/.env` also needs the selected providers' credentials:
 
 ```dotenv
-STT_PROVIDER=deepgram
-LLM_PROVIDER=openai_compatible
-TTS_PROVIDER=cartesia
-DEEPGRAM_API_KEY=YOUR_DEEPGRAM_KEY
-LLM_API_KEY=YOUR_OPENAI_OR_COMPATIBLE_KEY
-CARTESIA_API_KEY=YOUR_CARTESIA_KEY
+VOICE_PROFILE=groq_nvidia
+GROQ_API_KEY=YOUR_GROQ_KEY
+NVIDIA_API_KEY=YOUR_NVIDIA_KEY
 USE_CASE=general_assistant
 ```
 
@@ -83,19 +81,27 @@ overrides `.env` files; restart processes after changes. Automatic dispatch requ
 blank `AGENT_NAME` in **both** files; named dispatch must match exactly. Assistant
 display names are separate from dispatch registration.
 
+Install the native server using [Local LiveKit on Windows](docs/local-livekit-windows.md).
+Terminal 1, from the repository root:
+
+```powershell
+.\.local\livekit\livekit-server.exe --dev --config livekit.local.yaml
+```
+
+Terminal 2:
+
 ```powershell
 cd backend
 uv python install 3.13
 uv sync --locked --extra mcp --extra telemetry
-uv run python -m app.check_setup
+uv run python -m app.cli providers doctor --offline
 uv run python -m app.main download-files
 uv run --extra mcp --extra telemetry python -m app.main dev
 ```
 
-Keep the worker running. In a second PowerShell window:
+Keep the worker running. In Terminal 3, from the cloned repository root:
 
 ```powershell
-cd 'E:\voice agent starter\voice-agent-starter'
 corepack pnpm dev
 ```
 
@@ -104,59 +110,20 @@ job receipt, user transcript, LLM answer and **audible** TTS. Try barge-in, expl
 interrupt, mute, text input, disconnect and a fresh reconnect. A transcript alone
 does not prove audio playback. `Start Audio` handles browser autoplay restrictions.
 
-## Local containers
+## Optional containers
 
-LiveKit Cloud/SFU is **not** included. Continue using your external project URL and
-credentials. Dockerfiles exclude `.env` files and run application processes as
-non-root users. Never pass provider secrets as build arguments.
-
-```powershell
-cd 'E:\voice agent starter\voice-agent-starter'
-if (!(Test-Path -LiteralPath .env.compose)) { Copy-Item .env.compose.example .env.compose }
-notepad .env.compose
-# Set a strong persistent POSTGRES_PASSWORD; REDIS_PASSWORD only if using Redis.
-# Fill .env.local and backend/.env as above.
-docker compose --env-file .env.compose config --quiet
-docker compose --env-file .env.compose --profile app up --build -d
-docker compose --env-file .env.compose --profile app logs -f worker frontend
-# Optional Redis; enable REDIS_ENABLED in backend/.env only if using it:
-docker compose --env-file .env.compose --profile redis up -d --wait redis
-```
-
-The default frontend target is **development**, bound to host loopback, so the dev
-token issuer works locally. A production target is also provided, but its token
-route remains blocked. See [Docker and deployment](docs/docker.md) for migration
-commands, container DNS, service profiles and production requirements.
-
-Native voice-only development requires no PostgreSQL or Redis. When persistence is
-enabled, PostgreSQL and migrations become mandatory. Transcript storage is separately
-opt-in. Redis is never the permanent source of truth. See [persistence](docs/persistence.md).
+See [Docker setup](docs/docker.md) and [persistence](docs/persistence.md).
+PostgreSQL, Redis and Docker are optional for basic local voice development.
 
 ## Verification commands
 
-```powershell
-# Repository root
-corepack pnpm install --frozen-lockfile
-corepack pnpm lint
-corepack pnpm typecheck
-corepack pnpm test
-corepack pnpm build
-corepack pnpm security:secrets
-node scripts/check-secrets.mjs --history
+For repeatable offline checks, opt-in provider calls and manual browser tests, use
+[the local smoke checklist](docs/local-smoke-tests.md). See also
+[stabilization findings and limitations](docs/main-stabilization.md).
 
-cd backend
-uv sync --locked --extra mcp --extra telemetry
-uv run ruff check app tests
-uv run ruff format --check app tests
-uv run pytest -q
-```
-
-Real PostgreSQL/Redis contracts require dedicated `TEST_DATABASE_URL` and
-`TEST_REDIS_URL`. Real voice replay requires `RUN_REAL_VOICE_EVAL=true` plus consented
-WAV fixtures/provider credentials. Missing prerequisites are skipped, not successful
-benchmarks. Local MCP tests start actual harmless stdio/HTTP servers when its extra
-is installed. Clean builds need internet for packages, the Google font and worker
-model assets. CI uses Node 24 and locked Python/frontend dependencies.
+The smoke checklist contains all offline commands. CI makes no real provider
+calls. Skips are not successful integration tests. Speaker audibility requires
+actual confirmation; advanced audio work stays on voice-optimization.
 
 ## Documentation and reusable parts
 

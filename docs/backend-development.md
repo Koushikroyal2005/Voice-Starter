@@ -12,7 +12,7 @@ uv python install 3.13
 uv sync --locked --extra mcp --extra telemetry
 if (!(Test-Path -LiteralPath .env)) { Copy-Item .env.example .env }
 notepad .env
-uv run python -m app.check_setup
+uv run python -m app.cli providers doctor --offline
 uv run python -m app.main download-files
 uv run --extra mcp --extra telemetry python -m app.main dev
 ```

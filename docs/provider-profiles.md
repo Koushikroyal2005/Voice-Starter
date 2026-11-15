@@ -27,9 +27,8 @@ LIVEKIT_API_KEY=devkey
 LIVEKIT_API_SECRET=secret
 AGENT_NAME=
 GROQ_API_KEY=YOUR_GROQ_KEY
-GOOGLE_API_KEY=YOUR_GOOGLE_AI_STUDIO_KEY
-NVIDIA_API_KEY=
-VOICE_PROFILE=groq_gemini
+NVIDIA_API_KEY=YOUR_NVIDIA_KEY
+VOICE_PROFILE=groq_nvidia
 ```
 
 The frontend's root `.env.local` contains only the four matching LiveKit settings.

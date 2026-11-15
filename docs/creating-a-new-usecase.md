@@ -13,8 +13,7 @@ cd 'E:\voice agent starter\voice-agent-starter\backend'
 uv sync --extra mcp --extra telemetry
 $env:USE_CASE = 'education'
 $env:TOOL_ALLOWLIST = 'get_current_time,calculate_expression,time_and_calculate,create_study_plan'
-$env:STT_LANGUAGE = 'en'
-$env:TTS_LANGUAGE = 'en'
+# Keep VOICE_PROFILE=groq_nvidia; YAML supplies language/model defaults.
 uv run python -m app.main dev
 ```
 
