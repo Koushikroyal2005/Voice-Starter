@@ -26,6 +26,7 @@ def test_preloads_registered_native_plugins_without_constructing_providers():
         "livekit.plugins.cartesia",
         "livekit.plugins.elevenlabs",
         "livekit.plugins.murf",
+        "app.providers.tts.nvidia",
     }
     assert len(modules) == len(set(modules))
 

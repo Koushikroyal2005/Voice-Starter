@@ -317,7 +317,7 @@ process already running. Keep LiveKit and Next.js bound to loopback.
 Terminal 1, repository root:
 
 ```powershell
-.\.local\livekit\livekit-server.exe --dev --bind 127.0.0.1 --node-ip 127.0.0.1
+.\.local\livekit\livekit-server.exe --dev --config livekit.local.yaml
 ```
 
 Terminal 2:

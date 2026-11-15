@@ -55,7 +55,13 @@ the alias privately. No real credentials are copied into examples.
 - `nvidia_gemini`: Groq Whisper, NVIDIA `meta/llama-3.3-70b-instruct` through the
   existing OpenAI-compatible LLM adapter, the same Gemini TTS. Needs all three
   provider keys. NVIDIA inference/tool compatibility is **not tested** here.
-  Tool capability is unknown, not promised. No NVIDIA STT/TTS is registered.
+  Tool capability is unknown, not promised. No NVIDIA STT is registered.
+
+- `groq_nvidia`: Groq Whisper STT, Groq GPT-OSS LLM, NVIDIA Magpie multilingual
+  TTS with the Aria voice. Requires only `GROQ_API_KEY` and `NVIDIA_API_KEY`.
+  See [Magpie access and verification](nvidia-magpie.md). The verified HTTP adapter
+  accepts complete text and emits validated 44.1 kHz PCM; it does not implement
+  the separately documented gRPC streaming interface.
 
 Restart the worker after editing a profile or its selected name. No model listing,
 account probe, infrastructure enablement or automatic fallback occurs on startup.
@@ -110,7 +116,8 @@ Each category declares an adapter, `api_key_env`, defaults, optional LLM endpoin
 and model entries with their own capabilities and voice/language/API requirements.
 Provider-wide unknown capabilities remain unknown. Model-specific declarations
 win during validation; catalogued support does not establish account access.
-STT/TTS transport endpoints remain owned by their existing adapters. Generic LLM
+Existing STT/TTS endpoints remain owned by their adapters; NVIDIA Magpie's separate
+hosted speech endpoint is supplied by its TTS catalog entry. Generic LLM
 catalog entries preserve explicitly configured non-catalogued model support;
 their capabilities are conservative and inference must be verified separately.
 
@@ -177,11 +184,13 @@ Model listing alone is not an inference/access test.
 
 ## Evidence and reference design
 
-This change ran offline diagnostics and mocked inference tests only—no paid API
-calls or browser acceptance test. Historical real checks for Groq Whisper,
+The original catalog/profile change used offline diagnostics and mocked tests.
+The later `groq_nvidia` integration verified hosted access, live provider doctor,
+synthetic speech through local LiveKit and browser text/tool/audio interaction;
+see [the Magpie guide](nvidia-magpie.md). Historical real checks for Groq Whisper,
 GPT-OSS streaming/tool selection and Gemini 3.8 TTS/roomless AgentSession are in
-[the first voice guide](first-voice-conversation.md). Gemini-only and NVIDIA
-profiles are documented candidates, not newly verified working integrations.
+[the first voice guide](first-voice-conversation.md). Gemini-only and NVIDIA LLM
+(`nvidia_gemini`) profiles remain candidates without new inference verification.
 
 The relevant PentAGI patterns were a single constructor/credential registry,
 separate model catalogs, per-role defaults layered over provider defaults, and

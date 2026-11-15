@@ -2,6 +2,38 @@
 version: 1
 name: "nvidia"
 categories:
+  tts:
+    adapter: nvidia_magpie
+    api_key_env: NVIDIA_API_KEY
+    default_model: magpie-tts-multilingual
+    base_url: https://877104f7-e885-42b9-8de8-f6e4c6303969.invocation.api.nvcf.nvidia.com
+    capabilities:
+      streaming: false
+      multilingual: true
+      cancellation: true
+      notes: "Full-text HTTP synthesis, validated PCM WAV; no streaming text input. Remote inference may continue after cancellation."
+    models:
+      magpie-tts-multilingual:
+        capabilities:
+          streaming: false
+          multilingual: true
+          cancellation: true
+        voice: Magpie-Multilingual.EN-US.Aria
+        language: en-US
+        evidence: inference_verified
+        voices:
+          - Magpie-Multilingual.EN-US.Aria
+          - Magpie-Multilingual.EN-US.Diego
+          - Magpie-Multilingual.EN-US.Isabela
+          - Magpie-Multilingual.EN-US.Jason
+          - Magpie-Multilingual.EN-US.Leo
+          - Magpie-Multilingual.EN-US.Louise
+          - Magpie-Multilingual.EN-US.Mia
+          - Magpie-Multilingual.EN-US.Pascal
+          - Magpie-Multilingual.EN-US.Ray
+          - Magpie-Multilingual.EN-US.Sofia
+        languages: [en, en-US, es-US, fr-FR, de-DE, zh-CN, vi-VN, it-IT, hi-IN, ja-JP, ko-KR, ar-XA, pt-BR]
+    docs: https://build.nvidia.com/nvidia/magpie-tts-multilingual/api
   llm:
     adapter: "openai_compatible"
     api_key_env: "NVIDIA_API_KEY"

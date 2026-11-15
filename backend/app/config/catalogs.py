@@ -88,7 +88,14 @@ def register_catalogs(target, directory: Path = CONFIG_ROOT / "providers"):
     adapters = {
         "stt": {"groq", "gemini", "deepgram", "assemblyai", "whisper"},
         "llm": {"openai_compatible", "gemini"},
-        "tts": {"groq_tts", "gemini", "cartesia", "elevenlabs", "murf"},
+        "tts": {
+            "groq_tts",
+            "gemini",
+            "cartesia",
+            "elevenlabs",
+            "murf",
+            "nvidia_magpie",
+        },
     }
     plugins = {
         "groq": "openai",
@@ -153,8 +160,12 @@ def register_catalogs(target, directory: Path = CONFIG_ROOT / "providers"):
                     docs=entry.docs,
                     models=() if entry.allow_custom_models else tuple(metadata),
                     model_metadata=metadata,
-                    plugin_module="livekit.plugins."
-                    + plugins.get(entry.adapter, entry.adapter),
+                    plugin_module=(
+                        "app.providers.tts.nvidia"
+                        if entry.adapter == "nvidia_magpie"
+                        else "livekit.plugins."
+                        + plugins.get(entry.adapter, entry.adapter)
+                    ),
                 )
             )
 

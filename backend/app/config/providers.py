@@ -97,10 +97,18 @@ def resolve_provider(
         raise ConfigurationError("LLM_BASE_URL is not supported for gemini")
     if category == "stt" and name != "whisper" and base_url:
         raise ConfigurationError(f"STT_BASE_URL is not supported for {name}")
-    if category == "tts" and base_url:
+    if (
+        category == "tts"
+        and base_url
+        and spec.builder != "app.providers.tts:nvidia_magpie"
+    ):
         raise ConfigurationError("TTS_BASE_URL is not configured by these adapters")
     if base_url:
-        validate_url(f"{prefix}_BASE_URL", base_url, {"http", "https"})
+        validate_url(
+            f"{prefix}_BASE_URL",
+            base_url,
+            {"https"} if category == "tts" else {"http", "https"},
+        )
     if category == "llm" and name == "openai_compatible":
         if base_url.rstrip("/") != spec.base_url and not optional("LLM_MODEL"):
             raise ConfigurationError("LLM_MODEL is required for a custom LLM_BASE_URL")

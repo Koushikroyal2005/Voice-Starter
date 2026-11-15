@@ -14,6 +14,18 @@ def groq_tts(config: ProviderConfig) -> TTS:
     return GroqTTS(api_key=config.api_key, model=config.model, voice=config.voice)
 
 
+def nvidia_magpie(config: ProviderConfig) -> TTS:
+    from app.providers.tts.nvidia import NvidiaMagpieTTS
+
+    return NvidiaMagpieTTS(
+        api_key=config.api_key,
+        model=config.model,
+        voice=config.voice,
+        language=config.language,
+        base_url=config.base_url,
+    )
+
+
 def gemini(config: ProviderConfig) -> TTS:
     """Use native audio synthesis; google-genai 3.x needs the v1beta env setting.
 

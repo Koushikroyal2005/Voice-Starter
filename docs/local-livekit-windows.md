@@ -92,11 +92,13 @@ Stop an already-running binary before reinstalling it.
 From the repository root:
 
 ```powershell
-.\.local\livekit\livekit-server.exe --dev --bind 127.0.0.1 --node-ip 127.0.0.1
+.\.local\livekit\livekit-server.exe --dev --config livekit.local.yaml
 ```
 
 Loopback binding and an explicit advertised loopback IP avoid Docker/WSL virtual
-adapters being selected for this laptop-only setup. Signaling uses TCP 7880;
+adapters being selected for this laptop-only setup. The configuration also enables
+loopback ICE candidates: advertising 127.0.0.1 alone does not bind UDP media to
+loopback and can cause a connection timeout. Signaling uses TCP 7880;
 development RTC uses TCP 7881 and UDP 7882. Do not expose dev mode to a LAN or the
 internet. A Windows "CPU monitoring unsupported/capacity management disabled"
 message does not by itself mean signaling failed; check the subsequent server

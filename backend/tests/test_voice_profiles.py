@@ -217,4 +217,4 @@ def test_catalogs_repopulate_same_registry_and_reject_bad_metadata(tmp_path):
         register_catalogs(ProviderRegistry(), tmp_path)
     assert set(
         read_yaml(CONFIG_ROOT / "providers/nvidia.yaml", Catalog).categories
-    ) == {"llm"}
+    ) == {"llm", "tts"}

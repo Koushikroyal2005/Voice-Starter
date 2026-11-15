@@ -1,0 +1,9 @@
+version: 1
+name: groq_nvidia
+stt:
+  provider: groq
+llm:
+  provider: groq
+tts:
+  provider: nvidia
+turn_detection: vad
