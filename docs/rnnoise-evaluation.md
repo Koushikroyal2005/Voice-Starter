@@ -193,3 +193,164 @@ the five separately reported local runs used the real DLL. Frontend code was not
 changed, so no frontend build or browser voice test was performed for this
 offline-only experiment. The repository secret heuristic also passed; it is not
 a substitute for reviewing the staged file list.
+
+## Sustained replay and microphone workflow (later checkpoint)
+
+Added after `693ff1cbfd929f24b7b85508634a86c44c60c236` on `voice-optimization`.
+The processor itself and all other processors remain unchanged. This is a
+workflow/sustained-processing checkpoint, **not completed real-microphone quality
+acceptance**. No consented microphone files were supplied. Having a microphone
+does not establish a recording or listening result; capture was not activated
+unattended.
+
+### Record five local clips
+
+The optional Windows PowerShell helper uses built-in WinMM/MCI, not a new Python
+dependency. It is based on Microsoft's [record](https://learn.microsoft.com/en-us/windows/win32/multimedia/record),
+[set](https://learn.microsoft.com/en-us/windows/win32/multimedia/set) and
+[mciSendString](https://learn.microsoft.com/en-us/previous-versions/dd757161(v=vs.85))
+documentation. It opens only when explicitly executed, records the Windows default
+input, closes it in `finally`, refuses nonignored/existing output paths, and
+requests mono 48 kHz PCM16. Device/permission/format failures return an MCI code.
+Its syntax and nonignored-path rejection were tested **without opening the mic**;
+actual device capture remains unverified. MCI is a legacy Windows interface and
+some devices may reject the requested format. Check Windows microphone privacy
+and the selected default input if it fails; no fallback fake audio is generated.
+
+From the repository root, select your input in Windows Sound settings, then run
+each command only when ready. Obtain consent from other speakers and avoid private
+TV content or conversations you do not have permission to record.
+
+```powershell
+New-Item -ItemType Directory -Force .local/rnnoise/recordings | Out-Null
+./scripts/record-rnnoise.ps1 -OutputFile .local/rnnoise/recordings/clean.wav -Seconds 30
+./scripts/record-rnnoise.ps1 -OutputFile .local/rnnoise/recordings/fan.wav -Seconds 30
+./scripts/record-rnnoise.ps1 -OutputFile .local/rnnoise/recordings/television.wav -Seconds 30
+./scripts/record-rnnoise.ps1 -OutputFile .local/rnnoise/recordings/quiet.wav -Seconds 30
+./scripts/record-rnnoise.ps1 -OutputFile .local/rnnoise/recordings/overlap.wav -Seconds 30
+Copy-Item backend/app/evaluation/rnnoise-recordings.example.json .local/rnnoise/recordings/manifest.json
+```
+
+Run these individually, not as an unattended recording sequence. Do not overwrite
+an existing private manifest; skip the copy if one exists. For clean speech use
+normal speaking volume; for fan/TV include background-only intervals followed by
+speech; for quiet speech use a soft voice at a consistent distance; for overlap
+have a consenting second speaker speak simultaneously. Note device, distance,
+noise source and any Windows/driver noise suppression locally. This workflow
+does not disable driver processing or claim raw hardware capture.
+
+Existing user-provided WAV files can be placed in that ignored directory and
+referenced by the same manifest. The sustained reader requires nonempty **mono
+48 kHz PCM16, up to 60 seconds**; other rates/encodings are rejected, not silently
+converted. For optional later STT evaluation, create a private `clean.txt` and add
+`"reference_file": "clean.txt"` to that fixture. References are copied locally
+as `reference.txt` (max 64 KiB); neither text nor audio is printed or uploaded.
+The reference describes the source clip, not an automatically expanded replay.
+No transcription API is invoked and no WER is reported.
+
+### Sustained benchmark and listening
+
+Use the existing optional RNNoise environment. For one case:
+
+```powershell
+$env:PYTHONPATH = 'backend'
+foreach ($chunk in @(10, 20, 40)) {
+    .local/rnnoise/.venv/Scripts/python.exe -m app.evaluation.rnnoise_sustained --manifest .local/rnnoise/recordings/manifest.json --case clean --chunk-ms $chunk --seconds 60 --output-dir .local/rnnoise/microphone-results/clean-$chunk
+    if ($LASTEXITCODE -ne 0) { throw 'Replay failed' }
+}
+```
+
+Repeat with `--case fan`, `television`, `quiet` and `overlap`, changing output
+directories accordingly. All destinations must be ignored and absent. A run is
+bounded to 1–300 seconds; recordings shorter than the requested duration loop
+without resetting native state. Loop counts and source hash/duration are reported;
+seams are not natural continuous speech. A final short chunk gets its actual
+sample-duration budget. `--unpaced` measures maximum throughput rather than paced
+deadline behavior. Every run writes `original.wav`, `processed.wav`, `report.json`
+and optionally `reference.txt` locally. Partial audio may remain after a failed
+run, but no success report is generated. Do not reuse a failed destination.
+
+Listen at the same volume without normalizing away differences:
+
+```powershell
+$pair = '.local/rnnoise/microphone-results/clean-20'
+(New-Object System.Media.SoundPlayer ((Resolve-Path (Join-Path $pair 'original.wav')).Path)).PlaySync()
+(New-Object System.Media.SoundPlayer ((Resolve-Path (Join-Path $pair 'processed.wav')).Path)).PlaySync()
+```
+
+Record subjective notes privately: intelligibility, missing/softened syllables,
+quiet-voice preservation, pumping/distortion, remaining background speech and
+preferred version. Do not equate quieter output with better target preservation.
+Native delay/tail handling is unchanged from the earlier experiment. Human
+listening, physical latency and transcription fields remain null until separately
+verified; this tool does not infer those judgments from timing metrics.
+
+### Metrics and actual sustained measurements
+
+The new evaluator keeps one native state throughout a run. It measures each
+`process()` call using a monotonic clock, including PCM conversion/native inference,
+and reports average, nearest-rank p95/p99/max and over-budget counts. Processing
+RTF = summed call time plus flush divided by audio duration; **sleep, WAV I/O,
+resource checks and initialization are excluded**. ResourceWindow separately
+measures total paced process CPU/wall and lifetime peak RSS; current RSS is sampled
+once per second of audio, with min/max/last-minus-first reported. This is not
+whole-laptop CPU or a guarantee against short memory spikes.
+
+Chunks are notionally available at fixed monotonic intervals. Two different
+failures are recorded: a call exceeding its audio-duration budget, and completion
+after its scheduled deadline. The second includes scheduling/sleep stalls and
+accumulated backlog, not just model compute. Replay catches up without dropping
+audio or resetting the clock. No OS real-time priority or spin-wait was enabled.
+Unpaced runs cannot establish scheduled deadline performance. A cooperative wall
+budget of requested duration +60 seconds and 1 GiB RSS check bounds ordinary
+failures, but cannot preempt a stuck native call. Use an external owned-process
+timeout for unattended runs; no unrelated processes should be terminated.
+
+**Measured locally:** three sequential **60-second paced runs** of the existing
+12-second synthetic `noise.wav`, replayed five times (four seams), at 48 kHz.
+These are **synthetic sustained CPU tests, not realistic microphone recordings**.
+Windows 11/i5-1035G1/eight logical CPUs/Python 3.13.14; background laptop load was
+uncontrolled and automated checks also ran during this work. One run per chunk
+size, no confidence intervals or isolated thermal/load study:
+
+- **10 ms / 6,000 calls:** average **2.358 ms**, p95 **3.179 ms**, p99 **3.438 ms**,
+  maximum **22.637 ms**, processing RTF **0.236**. **3** calls exceeded 10 ms;
+  **15** scheduled deadline misses, maximum lateness **20.889 ms**. Process CPU
+  **14.813 s / 24.69% of one core**; RSS **45.05–46.48 MiB**, last-minus-first
+  **+1.43 MiB**, lifetime peak **46.50 MiB**.
+- **20 ms / 3,000 calls:** average **4.207 ms**, p95 **5.973 ms**, p99 **6.767 ms**,
+  maximum **37.012 ms**, processing RTF **0.210**. **1** call exceeded 20 ms;
+  **142** scheduled misses, maximum lateness **690.331 ms**. Process CPU
+  **12.406 s / 20.68% of one core**; RSS **45.02–46.06 MiB**, delta **+1.04 MiB**,
+  lifetime peak **46.06 MiB**. The large scheduling stall's cause was not isolated;
+  it must not be attributed to RNNoise compute or dismissed as harmless.
+- **40 ms / 1,500 calls:** average **8.232 ms**, p95 **10.510 ms**, p99 **11.610 ms**,
+  maximum **42.851 ms**, processing RTF **0.206**. **1** call exceeded 40 ms;
+  **1** scheduled miss, maximum lateness **3.295 ms**. Process CPU
+  **12.406 s / 20.69% of one core**; RSS **44.54–45.38 MiB**, delta **+0.85 MiB**,
+  lifetime peak **45.38 MiB**.
+
+Each run produced exactly **2,880,000 samples** in both listening files with zero
+reported clipping. All three original PCM streams were byte-identical, and all
+three processed PCM streams were byte-identical across chunk sizes. This checks
+chunking consistency, not perceived quality. Modest one-minute RSS growth does not prove absence of leaks;
+longer runs remain needed. Memory scope differs from earlier NumPy-heavy scoring
+runs: do not infer a model memory improvement from the lower peak here.
+
+**Decision remains: do not integrate yet.** Average throughput is adequate here,
+but measured deadline misses remain, especially under scheduling interference.
+Actual clean/fan/TV/quiet/overlapping microphone capture, human listening,
+long-duration thermal behavior, concurrent voice-service load, STT accuracy and
+live interruption effects are still unverified. The workflow enables those
+tests; it does not mark them passed merely because synthetic replay completed.
+
+Verification for this workflow: **74 focused tests passed**, **577 full backend
+tests passed, 10 skipped** with real-provider tests disabled. Ruff lint passed;
+formatting passed for **126 files**. New tests cover replay boundaries (including
+one-sample sources), WAV pairs/duration, bounds, formats, nearest-rank percentiles,
+virtual-clock pacing/deadlines, failure cleanup and ignored-output enforcement.
+Unpaced scheduled-deadline fields are null, not a claim of zero misses. PowerShell
+syntax and nonignored-output guards passed; the guard test did not open the mic.
+No frontend/build checks were repeated because frontend and session code did not
+change. Source/docs/examples only are checkpoint files; ignored env files,
+recordings and reports remain local.

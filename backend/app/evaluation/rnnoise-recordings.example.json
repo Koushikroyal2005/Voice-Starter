@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "fixture_kind": "user_microphone_recordings_pending_verification",
+  "fixtures": [
+    {"id": "clean", "category": "clean", "wav": "clean.wav"},
+    {"id": "fan", "category": "fan", "wav": "fan.wav"},
+    {"id": "television", "category": "television", "wav": "television.wav"},
+    {"id": "quiet", "category": "quiet", "wav": "quiet.wav"},
+    {"id": "overlap", "category": "overlapping_speakers", "wav": "overlap.wav"}
+  ]
+}
