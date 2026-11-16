@@ -5,7 +5,8 @@ import json
 import wave
 from pathlib import Path
 
-from app.evaluation.voxlock import read_pcm, require_ignored
+from app.evaluation.artifacts import require_ignored
+from app.evaluation.voxlock import read_pcm
 
 
 def prepare(source: Path, destination: Path):

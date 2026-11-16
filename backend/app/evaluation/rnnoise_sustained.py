@@ -11,9 +11,9 @@ from pathlib import Path
 
 from app.audio.interfaces import AudioProcessingError, PCMChunk
 from app.audio.processors.rnnoise import RNNoiseProcessor
+from app.evaluation.artifacts import require_ignored
 from app.evaluation.baseline import load_manifest, revision
 from app.evaluation.resources import ResourceWindow, hardware, memory_snapshot
-from app.evaluation.voxlock import require_ignored
 
 
 def read_recording(path):

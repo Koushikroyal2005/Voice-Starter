@@ -245,7 +245,9 @@ def test_bad_download_is_removed_not_used(tmp_path, monkeypatch):
 
 
 def test_nonignored_artifacts_rejected(tmp_path, monkeypatch):
-    monkeypatch.setattr(evaluation.subprocess, "run", lambda *_, **__: NS(returncode=1))
+    monkeypatch.setattr(
+        "app.evaluation.artifacts.subprocess.run", lambda *_, **__: NS(returncode=1)
+    )
     with pytest.raises(ValueError, match="ignored"):
         evaluation.require_ignored(tmp_path)
 
@@ -286,3 +288,23 @@ def test_generated_formats_are_not_accepted_implicitly(processor_setup):
     with pytest.raises(AudioProcessingError):
         processor.process(PCMChunk(bytes(640)))
     assert processor._model is None
+
+
+@pytest.mark.parametrize("rate", [16000, 48000])
+def test_partial_final_chunk_uses_actual_audio_budget(monkeypatch, rate):
+    clock = [0.0]
+    monkeypatch.setattr(evaluation.time, "perf_counter", lambda: clock[0])
+    monkeypatch.setattr(evaluation, "memory_snapshot", lambda: {"rss_bytes": 0})
+
+    class Processor:
+        def process(self, chunk):
+            clock[0] += 0.015
+            return chunk
+
+        def flush(self):
+            return PCMChunk(b"", AudioFormat(rate))
+
+    report, _ = evaluation.measure_stream(
+        Processor(), PCMChunk(bytes(int(rate * 0.049) * 2), AudioFormat(rate)), 40, 10
+    )
+    assert report["chunk_processing_seconds"]["over_chunk_budget_count"] == 1

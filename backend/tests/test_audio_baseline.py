@@ -308,3 +308,120 @@ def test_replay_observation_seam_preserves_cleanup(monkeypatch, raise_in_hook):
     orchestrator.executor.close.assert_awaited_once()
     observer.close.assert_awaited_once()
     source_file.close.assert_called_once()
+
+
+@pytest.mark.parametrize(
+    "failure", ["source", "sink", "session_close", "executor_close", "file_close"]
+)
+def test_replay_cleanup_covers_setup_and_close_failures(monkeypatch, failure):
+    from app.evaluation import voice
+
+    session = NS(
+        input=NS(),
+        output=NS(),
+        on=lambda _: lambda cb: cb,
+        agent_state="idle",
+        start=AsyncMock(),
+        aclose=AsyncMock(),
+    )
+    executor = NS(close=AsyncMock())
+    orchestrator = NS(state=NS(conversation_id="test"), executor=executor)
+    observer = NS(close=AsyncMock())
+    source = NS(file=NS(getnframes=lambda: 0, close=Mock()))
+    monkeypatch.setattr(voice, "create_session", lambda _: session)
+    monkeypatch.setattr(voice, "build_orchestrator", lambda _: orchestrator)
+    monkeypatch.setattr(voice, "SessionObserver", lambda *_: observer)
+    monkeypatch.setattr(voice, "MainAgent", lambda *_: object())
+    monkeypatch.setattr(voice, "TimedSink", object)
+    monkeypatch.setattr(voice.asyncio, "sleep", AsyncMock())
+    if failure == "source":
+        monkeypatch.setattr(voice, "ReplayInput", Mock(side_effect=FileNotFoundError()))
+    else:
+        monkeypatch.setattr(voice, "ReplayInput", lambda _: source)
+        if failure == "sink":
+            monkeypatch.setattr(
+                voice, "TimedSink", Mock(side_effect=RuntimeError("sink"))
+            )
+        else:
+            {
+                "session_close": session.aclose,
+                "executor_close": executor.close,
+                "file_close": source.file.close,
+            }[failure].side_effect = RuntimeError("cleanup")
+    with pytest.raises((FileNotFoundError, RuntimeError)):
+        asyncio.run(voice.run_voice(settings(), "unused"))
+    session.aclose.assert_awaited_once()
+    executor.close.assert_awaited_once()
+    observer.close.assert_awaited_once()
+    if failure != "source":
+        source.file.close.assert_called_once()
+
+
+def test_cli_rejects_nonignored_output_before_replay(tmp_path, monkeypatch):
+    runner = Mock()
+    monkeypatch.setattr(baseline, "run", runner)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "baseline",
+            "--manifest",
+            "unused.json",
+            "--output",
+            str(tmp_path / "report.json"),
+        ],
+    )
+    with pytest.raises(SystemExit) as error:
+        baseline.main()
+    assert error.value.code == 2
+    runner.assert_not_called()
+
+
+def test_cli_writes_guarded_report_without_changing_format(tmp_path, monkeypatch):
+    from app.evaluation import artifacts
+
+    output = tmp_path / "report.json"
+    report = {"results": []}
+    guard = Mock(return_value=NS(returncode=0))
+    monkeypatch.setattr(artifacts.subprocess, "run", guard)
+    monkeypatch.setattr(baseline, "run", AsyncMock(return_value=report))
+    monkeypatch.setattr(
+        sys, "argv", ["baseline", "--manifest", "unused.json", "--output", str(output)]
+    )
+    baseline.main()
+    assert json.loads(output.read_text()) == report
+    assert guard.call_args.args[0][-1] == str(output.resolve())
+
+
+def test_replay_cleanup_order_remains_session_executor_file_observer(monkeypatch):
+    from app.evaluation import voice
+
+    order = []
+    session = NS(
+        input=NS(),
+        output=NS(),
+        on=lambda _: lambda cb: cb,
+        agent_state="idle",
+        start=AsyncMock(),
+        aclose=AsyncMock(side_effect=lambda: order.append("session")),
+    )
+    executor = NS(close=AsyncMock(side_effect=lambda: order.append("executor")))
+    source = NS(
+        file=NS(
+            getnframes=lambda: 0, close=Mock(side_effect=lambda: order.append("file"))
+        )
+    )
+    observer = NS(close=AsyncMock(side_effect=lambda: order.append("observer")))
+    monkeypatch.setattr(voice, "create_session", lambda _: session)
+    monkeypatch.setattr(
+        voice,
+        "build_orchestrator",
+        lambda _: NS(state=NS(conversation_id="test"), executor=executor),
+    )
+    monkeypatch.setattr(voice, "SessionObserver", lambda *_: observer)
+    monkeypatch.setattr(voice, "ReplayInput", lambda _: source)
+    monkeypatch.setattr(voice, "TimedSink", object)
+    monkeypatch.setattr(voice, "MainAgent", lambda *_: object())
+    monkeypatch.setattr(voice.asyncio, "sleep", AsyncMock())
+    asyncio.run(voice.run_voice(settings(), "unused"))
+    assert order == ["session", "executor", "file", "observer"]

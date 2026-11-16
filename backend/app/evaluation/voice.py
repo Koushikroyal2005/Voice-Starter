@@ -98,23 +98,25 @@ class Capture:
 
 
 async def run_voice(settings, filename, timeout=120, *, observe_session=None):
-    session = create_session(settings)
-    # Preserve roomless evaluation's no-MCP boundary even if operator settings
-    # enable MCP. The runner supplies the safe builtin allowlist as before.
-    orchestrator = build_orchestrator(replace(settings, mcp_enabled=False))
-    orchestrator.state.actor_id = "evaluation-user"
-    capture = Capture(orchestrator.state.conversation_id)
-    observer = SessionObserver(session, orchestrator, capture)
-    source, sink = ReplayInput(filename), TimedSink()
-    session.input.audio, session.output.audio = source, sink
-    transcripts = []
-
-    @session.on("conversation_item_added")
-    def item(event):
-        if event.item.role == "user":
-            transcripts.append(event.item.text_content or "")
-
+    session = orchestrator = observer = source = None
     try:
+        session = create_session(settings)
+        # Preserve roomless evaluation's no-MCP boundary even if operator settings
+        # enable MCP. The runner supplies the safe builtin allowlist as before.
+        orchestrator = build_orchestrator(replace(settings, mcp_enabled=False))
+        orchestrator.state.actor_id = "evaluation-user"
+        capture = Capture(orchestrator.state.conversation_id)
+        observer = SessionObserver(session, orchestrator, capture)
+        source = ReplayInput(filename)
+        sink = TimedSink()
+        session.input.audio, session.output.audio = source, sink
+        transcripts = []
+
+        @session.on("conversation_item_added")
+        def item(event):
+            if event.item.role == "user":
+                transcripts.append(event.item.text_content or "")
+
         # Evaluation-only seam. Production sessions never import this runner.
         if observe_session is not None:
             observe_session(session)
@@ -130,8 +132,19 @@ async def run_voice(settings, filename, timeout=120, *, observe_session=None):
                     stable + 1 if session.agent_state in {"listening", "idle"} else 0
                 )
     finally:
-        await session.aclose()
-        await orchestrator.executor.close()
-        source.file.close()
-        await observer.close()
+        # Preserve shutdown order; every acquired resource gets a cleanup attempt.
+        try:
+            if session is not None:
+                await session.aclose()
+        finally:
+            try:
+                if orchestrator is not None:
+                    await orchestrator.executor.close()
+            finally:
+                try:
+                    if source is not None:
+                        source.file.close()
+                finally:
+                    if observer is not None:
+                        await observer.close()
     return capture, " ".join(transcripts)

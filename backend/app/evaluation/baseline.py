@@ -15,6 +15,7 @@ from datetime import UTC, datetime
 from importlib.metadata import version
 from pathlib import Path
 
+from app.evaluation.artifacts import require_ignored_file
 from app.evaluation.resources import ResourceWindow, hardware
 from app.evaluation.scoring import summarize
 
@@ -361,6 +362,7 @@ def main():
     try:
         if args.output.suffix.lower() != ".json" or args.output.exists():
             raise ValueError("Choose a new JSON output file; overwrites are refused")
+        require_ignored_file(args.output)
         report = asyncio.run(run(args))
         args.output.parent.mkdir(parents=True, exist_ok=True)
         with args.output.open("x", encoding="utf-8") as output:

@@ -8,11 +8,12 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from app.audio.processors.deepfilternet import EXECUTABLE_SHA256, DeepFilterNetProcessor
+from app.evaluation.artifacts import require_ignored
 from app.evaluation.audio_scoring import comparison
 from app.evaluation.baseline import load_manifest, revision
 from app.evaluation.resources import ResourceWindow, hardware, run_measured_child
 from app.evaluation.rnnoise import read_pcm
-from app.evaluation.voxlock import measure_stream, require_ignored
+from app.evaluation.voxlock import measure_stream
 
 
 def evaluate(item, base: Path, executable: Path):

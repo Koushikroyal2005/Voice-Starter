@@ -4,7 +4,6 @@ import argparse
 import hashlib
 import json
 import math
-import subprocess
 import time
 import urllib.request
 import wave
@@ -20,21 +19,10 @@ from app.audio.processors.voxlock import (
     VoxLockProcessor,
     verify_models,
 )
+from app.evaluation.artifacts import require_ignored
 from app.evaluation.audio_scoring import compare_audio
 from app.evaluation.baseline import load_manifest, revision, wav_metadata
 from app.evaluation.resources import ResourceWindow, hardware, memory_snapshot
-
-
-def require_ignored(directory: Path):
-    """Refuse to write models/audio/reports into tracked or non-ignored locations."""
-    for name in ("probe.wav", "probe.onnx", "probe.json", "probe.part"):
-        result = subprocess.run(
-            ["git", "check-ignore", "--quiet", "--", str(directory.resolve() / name)],
-            capture_output=True,
-            timeout=3,
-        )
-        if result.returncode != 0:
-            raise ValueError("Use an ignored .local/ or evaluation.local/ directory")
 
 
 def download_models(directory: Path):
@@ -96,6 +84,7 @@ def measure_stream(
     if not original.data or chunk_ms not in (40, 80):
         raise ValueError("Supply nonempty PCM and 40ms or 80ms chunks")
     fragments, timings, first_output_input_samples = [], [], None
+    budgets = []
     step = chunk_ms * original.format.sample_rate // 1000 * original.format.channels * 2
     processing_start = time.perf_counter()
     for offset in range(0, len(original.data), step):
@@ -105,14 +94,14 @@ def measure_stream(
                 "Evaluation exceeded time or 1GiB working-set budget"
             )
         before = time.perf_counter()
-        output = processor.process(
-            PCMChunk(original.data[offset : offset + step], original.format)
-        )
+        chunk = PCMChunk(original.data[offset : offset + step], original.format)
+        output = processor.process(chunk)
         if output.format != original.format:
             raise AudioProcessingError(
                 "Processor output format changed during evaluation"
             )
         timings.append(time.perf_counter() - before)
+        budgets.append(chunk.samples_per_channel / chunk.format.sample_rate)
         fragments.append(output.data)
         if output.data and first_output_input_samples is None:
             first_output_input_samples = min(offset + step, len(original.data)) // (
@@ -136,7 +125,9 @@ def measure_stream(
             "p95": ordered[math.ceil(len(ordered) * 0.95) - 1],
             "max": max(timings),
             "count": len(timings),
-            "over_chunk_budget_count": sum(t > chunk_ms / 1000 for t in timings),
+            "over_chunk_budget_count": sum(
+                t > budget for t, budget in zip(timings, budgets, strict=True)
+            ),
         },
         "first_output_after_input_samples": first_output_input_samples,
     }, b"".join(fragments)

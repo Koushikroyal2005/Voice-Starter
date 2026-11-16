@@ -10,10 +10,11 @@ from pathlib import Path
 
 from app.audio.interfaces import PCMChunk
 from app.audio.processors.rnnoise import RNNoiseProcessor
+from app.evaluation.artifacts import require_ignored
 from app.evaluation.audio_scoring import comparison
 from app.evaluation.baseline import load_manifest, revision
 from app.evaluation.resources import ResourceWindow, hardware
-from app.evaluation.voxlock import measure_stream, require_ignored
+from app.evaluation.voxlock import measure_stream
 
 
 def read_pcm(path: Path):

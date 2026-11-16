@@ -10,6 +10,9 @@ accuracy or acoustic latency results.
 ## Local fixtures and offline inventory
 
 Use consented WAV recordings outside Git or in ignored `backend/evaluation.local/`.
+Report destinations must also be Git-ignored (for example `evaluation.local/`
+when running from `backend/`, or repository-root `.local/`). The CLI validates
+the exact report path before starting evaluation and continues to refuse overwrites.
 Do not add private audio, reference text, reviews or reports to Git. The default
 report directory is ignored; other destinations must be kept private by you.
 Reports omit filenames, paths, reference text, transcripts, prompts and keys, but
