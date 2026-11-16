@@ -10,9 +10,10 @@ from pathlib import Path
 
 from app.audio.interfaces import PCMChunk
 from app.audio.processors.rnnoise import RNNoiseProcessor
+from app.evaluation.audio_scoring import comparison
 from app.evaluation.baseline import load_manifest, revision
 from app.evaluation.resources import ResourceWindow, hardware
-from app.evaluation.voxlock import compare_audio, measure_stream, require_ignored
+from app.evaluation.voxlock import measure_stream, require_ignored
 
 
 def read_pcm(path: Path):
@@ -38,36 +39,6 @@ def read_pcm(path: Path):
         "duration_seconds": frames / 48000,
         "pcm_sha256": hashlib.sha256(data).hexdigest(),
     }
-
-
-def comparison(original, output, target, intervals):
-    import numpy as np
-
-    # Energy and SDR are sample-rate independent. Its interval helper is 16kHz:
-    # convert only interval coordinates, not samples, for this reused function.
-    scaled = [[start * 3, end * 3] for start, end in intervals]
-    result = {"raw": compare_audio(original, output, target, scaled)}
-    result["estimated_alignment_samples"] = None
-    result["aligned"] = None
-    if target is not None:
-        reference = np.frombuffer(target, dtype="<i2").astype(np.float64)
-        actual = np.frombuffer(output, dtype="<i2").astype(np.float64)
-        # Bounded offline cross-correlation, 0..40ms; no timestamps invented.
-        # Decimate by 4 only for lag estimation; retain full-rate SDR comparison.
-        scores = [
-            float(np.dot(reference[: len(actual) - lag : 4], actual[lag::4]))
-            for lag in range(0, min(1920, len(actual) - 1) + 1, 4)
-        ]
-        if np.any(reference) and np.any(actual):
-            lag = int(np.argmax(scores)) * 4
-            result["estimated_alignment_samples"] = lag
-            result["aligned"] = compare_audio(
-                original[: len(original) - 2 * lag] if lag else original,
-                output[2 * lag :],
-                target[: len(target) - 2 * lag] if lag else target,
-                [],
-            )
-    return result
 
 
 def evaluate(item, base: Path):

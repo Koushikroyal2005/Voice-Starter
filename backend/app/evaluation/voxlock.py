@@ -20,6 +20,7 @@ from app.audio.processors.voxlock import (
     VoxLockProcessor,
     verify_models,
 )
+from app.evaluation.audio_scoring import compare_audio
 from app.evaluation.baseline import load_manifest, revision, wav_metadata
 from app.evaluation.resources import ResourceWindow, hardware, memory_snapshot
 
@@ -86,57 +87,6 @@ def read_pcm(filename: Path, *, enrollment=False) -> tuple[PCMChunk, dict]:
         raise ValueError("Target enrollment needs at least three seconds")
     with wave.open(str(filename), "rb") as audio:
         return PCMChunk(audio.readframes(audio.getnframes())), metadata
-
-
-def compare_audio(original: bytes, processed: bytes, target: bytes | None, intervals):
-    """Known-reference signal error and labeled background-only energy, not ASR."""
-    import numpy as np
-
-    def samples(data):
-        return np.frombuffer(data, dtype="<i2").astype(np.float64) / 32768
-
-    source, output = samples(original), samples(processed)
-    if len(source) != len(output):
-        raise AudioProcessingError("Output duration differs from input")
-
-    def energy(values):
-        return float(np.mean(values**2))
-
-    def db_ratio(numerator, denominator):
-        return (
-            10 * math.log10(numerator / denominator)
-            if numerator and denominator
-            else None
-        )
-
-    result = {
-        "input_rms": math.sqrt(energy(source)),
-        "output_rms": math.sqrt(energy(output)),
-        "scale_sensitive_sdr_input_db": None,
-        "scale_sensitive_sdr_output_db": None,
-        "background_only_attenuation_db": [],
-        "target_preserved_human_judgment": None,
-        "background_suppressed_human_judgment": None,
-    }
-    if target is not None:
-        expected = samples(target)
-        if len(expected) != len(source):
-            raise ValueError("Target reference must be sample-aligned and equal length")
-        for label, values in (("input", source), ("output", output)):
-            result[f"scale_sensitive_sdr_{label}_db"] = db_ratio(
-                energy(expected), energy(values - expected)
-            )
-    for start, end in intervals:
-        start_sample, end_sample = int(start * 16000), int(end * 16000)
-        if not 0 <= start_sample < end_sample <= len(source):
-            raise ValueError("Invalid background-only interval")
-        result["background_only_attenuation_db"].append(
-            db_ratio(
-                energy(source[start_sample:end_sample]),
-                energy(output[start_sample:end_sample]),
-            )
-        )
-    return result
 
 
 def measure_stream(
