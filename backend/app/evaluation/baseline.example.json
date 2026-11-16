@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "fixtures": [
+    {"id": "clean", "category": "clean", "wav": "clean.wav", "reference_file": "clean.txt"},
+    {"id": "quiet", "category": "quiet", "wav": "quiet.wav", "reference_file": "quiet.txt"},
+    {"id": "fan", "category": "fan", "wav": "fan.wav"},
+    {"id": "television", "category": "television", "wav": "television.wav"},
+    {"id": "music", "category": "music_chanting", "wav": "music.wav"},
+    {"id": "multiple", "category": "multiple_speakers", "wav": "multiple.wav"},
+    {"id": "overlap", "category": "overlapping_speakers", "wav": "overlap.wav"}
+  ]
+}

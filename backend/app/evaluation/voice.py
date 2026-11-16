@@ -97,7 +97,7 @@ class Capture:
         pass
 
 
-async def run_voice(settings, filename, timeout=120):
+async def run_voice(settings, filename, timeout=120, *, observe_session=None):
     session = create_session(settings)
     # Preserve roomless evaluation's no-MCP boundary even if operator settings
     # enable MCP. The runner supplies the safe builtin allowlist as before.
@@ -115,6 +115,9 @@ async def run_voice(settings, filename, timeout=120):
             transcripts.append(event.item.text_content or "")
 
     try:
+        # Evaluation-only seam. Production sessions never import this runner.
+        if observe_session is not None:
+            observe_session(session)
         async with asyncio.timeout(timeout):
             await session.start(agent=MainAgent(settings, orchestrator), record=False)
             # Replay duration + trailing silence, then wait for settled agent output.
