@@ -1,0 +1,4 @@
+# Isolated native-DLL experiment only. Install with --no-deps (see guide).
+pyrnnoise==0.4.5
+numpy==2.5.4
+soxr==1.1.0
