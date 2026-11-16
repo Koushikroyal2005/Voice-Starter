@@ -16,7 +16,12 @@ def compare_audio(
     """Known-reference signal error and labeled background-only energy, not ASR."""
     import numpy as np
 
+    if type(sample_rate) is not int or sample_rate <= 0:
+        raise ValueError("Expected a positive integer sample rate")
+
     def samples(data):
+        if not isinstance(data, bytes) or not data or len(data) % 2:
+            raise AudioProcessingError("Expected nonempty, sample-aligned PCM16 bytes")
         return np.frombuffer(data, dtype="<i2").astype(np.float64) / 32768
 
     source, output = samples(original), samples(processed)
@@ -90,5 +95,6 @@ def comparison(original, output, target, intervals, *, sample_rate=48000):
                 output[2 * lag :],
                 target[: len(target) - 2 * lag] if lag else target,
                 [],
+                sample_rate=sample_rate,
             )
     return result

@@ -3,6 +3,8 @@
 import math
 import struct
 import wave
+from concurrent.futures import ThreadPoolExecutor
+from threading import Barrier
 from types import SimpleNamespace
 
 import pytest
@@ -115,6 +117,32 @@ def test_output_clips_not_wraps(native):
         output = processor.process(chunk([-32768, 32767] * 240))
         assert output.data == chunk([-32768, 32767] * 240).data
         assert processor.clipped_samples == 480
+
+
+def test_repeated_initialization_and_idempotent_cleanup(native):
+    for _ in range(20):
+        with rnnoise.RNNoiseProcessor() as processor:
+            assert processor.process(chunk([0] * 481)).data == bytes(960)
+            assert processor.flush().data == bytes(2)
+            processor.close()
+    assert len(native.destroyed) == 20
+
+
+def test_independent_processors_can_be_called_concurrently(monkeypatch):
+    # The contract is one owner per instance, not shared-instance thread safety.
+    barrier = Barrier(2)
+
+    def run(value):
+        with rnnoise.RNNoiseProcessor() as processor:
+            barrier.wait(timeout=5)
+            source = chunk([value] * 481)
+            return processor.process(source).data + processor.flush().data
+
+    monkeypatch.setattr(rnnoise, "_library", Native)
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        futures = [pool.submit(run, value) for value in (-32768, 32767)]
+        results = [future.result(timeout=10) for future in futures]
+    assert results == [chunk([value] * 481).data for value in (-32768, 32767)]
 
 
 @pytest.mark.parametrize("failure", ["size", "allocation"])

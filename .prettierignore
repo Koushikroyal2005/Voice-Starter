@@ -4,6 +4,10 @@ node_modules/
 pnpm-lock.yaml
 .next/
 .env*
+.local/
+backend/.venv/
+backend/.pytest_cache/
+backend/evaluation.local/
 
 
 
